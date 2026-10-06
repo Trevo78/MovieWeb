@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confused Breakfast Movie Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f2238; --deep:#091627; --paper:#e6edf3; --navy:#12263d; --muted:#5b6f85;
+  --line:#c5d1dd; --gold:#d9a441; --print:#f7f9fb;
+  --cond:"Barlow Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --body:"Barlow","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--body);color:var(--navy);background:var(--deep);display:grid;grid-template-columns:1fr 348px;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* stage */
+#stage{position:relative;overflow:hidden;background:var(--ink);touch-action:none;cursor:grab;min-height:0}
+#stage.panning{cursor:grabbing}
+#threads{position:absolute;inset:0;width:100%;height:100%}
+#labels{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.node{position:absolute;left:0;top:0;width:66px;height:99px;margin:-49px 0 0 -33px;padding:0;border:0;background:none;cursor:pointer;transition:opacity .25s,width .4s,height .4s,margin .4s}
+.pin{position:absolute;inset:0;background:var(--print);border:2px solid var(--print);box-shadow:0 3px 10px rgba(3,10,20,.55);transition:transform .2s}
+.pin img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.node.has-img .pin img{display:block}
+.card{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:5px;text-align:center;
+  font:600 10.5px/1.1 var(--cond);color:var(--print);background:#27476b;overflow:hidden;overflow-wrap:break-word;hyphens:auto}
+.node.ph .pin{background:none;border:2px dashed #7f97b2;box-shadow:none}
+.node.ph .card{background:none;color:#a9bdd3;font-size:34px}
+.fmt{position:absolute;left:-6px;bottom:-6px;padding:1px 5px;font:700 11px/1.3 var(--cond);background:#0a1829;color:#fff;border:1px solid #6f8cab;border-radius:3px}
+.fmt.f4K{background:var(--gold);color:#201500}
+.fmt.fBlu-ray{background:#2f7fd6}
+.fmt.fCriterion{background:#fff;color:#111}
+.cap{position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;padding:1px 6px;font:600 12px/1.35 var(--cond);
+  color:var(--print);background:rgba(9,22,39,.88);border-radius:2px;opacity:0;pointer-events:none;transition:opacity .15s}
+.node:hover,.node.sel,.node.lit{z-index:5}
+.node.sel{z-index:6}
+.node:hover .cap,.node.sel .cap,.node.lit .cap{opacity:1}
+.node:hover .pin{transform:scale(1.12)}
+.node.sel .pin{transform:scale(1.25);border-color:var(--gold)}
+.node.sel .cap{top:calc(125% + 8px);font-size:14px}
+.node.dim{opacity:.1}
+.node.quiet{opacity:.16}
+.node.quiet:hover{opacity:.7}
+.node.dim:hover{opacity:.6}
+
+/* controls */
+#bar{position:absolute;left:14px;top:14px;right:14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
+#bar>*{pointer-events:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border:1px solid #35506f;border-radius:999px;background:#0a1829;
+  color:#d7e2ee;font:500 13px/1.3 var(--body)}
+.chip i{width:14px;height:3px;border-radius:2px;background:var(--c)}
+.chip b{font-weight:500;color:#8ea4bb}
+.chip[aria-pressed="false"]{color:#7389a1;border-style:dashed}
+.chip[aria-pressed="false"] i{background:#3c536d}
+#find{width:150px;padding:5px 10px;border:1px solid #35506f;border-radius:999px;background:#0a1829;color:#fff;font:400 13px var(--body)}
+#find::placeholder{color:#7f95ad}
+#zoom{position:absolute;left:14px;bottom:14px;display:flex;gap:6px;align-items:center}
+#zoom button{height:34px;min-width:34px;padding:0 12px;border:1px solid #35506f;border-radius:999px;background:#0a1829;color:#d7e2ee;font:500 13px var(--body)}
+#zoom button[data-z]{padding:0;font:500 20px/1 var(--body)}
+#zoom button:hover{border-color:#6f8cab;color:#fff}
+
+.seg{display:inline-flex;border:1px solid #5d7896;border-radius:999px;overflow:hidden;background:#0a1829}
+.seg button{border:0;background:none;padding:5px 13px;color:#b9c8d8;font:600 13px/1.3 var(--body)}
+.seg button+button{border-left:1px solid #35506f}
+.seg button[aria-pressed="true"]{background:var(--gold);color:#201500}
+#genre{padding:5px 10px;border:1px solid #35506f;border-radius:999px;background:#0a1829;color:#d7e2ee;font:500 13px/1.3 var(--body)}
+.scores{margin:2px 0 16px}
+.scores div{display:grid;grid-template-columns:62px 1fr 42px;gap:10px;align-items:center;padding:3px 0;font:500 15px var(--cond);color:var(--muted)}
+.scores i{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.scores b{display:block;height:100%;background:#7d90a5}
+.scores em{font-style:normal;font-weight:700;text-align:right;color:var(--navy)}
+.scores .on{color:var(--navy);font-weight:700}
+.scores .on b{background:var(--gold)}
+.avg{font:500 16px var(--cond);color:var(--muted);margin:12px 0 0}
+.avg b{color:var(--navy);font-weight:700}
+
+.also{margin:16px 0 0;font-size:15px}.also a{color:var(--navy);font-weight:600}
+.credit{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.tabs{display:flex;margin:22px 0 0;border:1px solid var(--navy);border-radius:999px;overflow:hidden}
+.tabs button{flex:1 1 auto;border:0;background:none;padding:7px 2px;font:600 13.5px/1.2 var(--cond);color:var(--navy);white-space:nowrap;min-width:0}
+.tabs button+button{border-left:1px solid var(--navy)}
+.tabs button[aria-pressed="true"]{background:var(--navy);color:var(--paper)}
+.tabs + h3,.tabs + .note + h3{border-top:0;padding-top:0;margin-top:18px}
+.note{font-size:13.5px;color:var(--muted);margin:14px 0 0}
+h3 .dot{display:inline-block;width:14px;height:3px;border-radius:2px;background:var(--c);margin-right:8px;vertical-align:middle}
+ul.feat .who{font:600 17px/1.2 var(--cond);text-decoration:none}
+ul.feat .who:hover{text-decoration:underline}
+ul.feat .n{white-space:nowrap}
+ul.feat small{font-weight:500;font-size:13px;margin-left:6px}
+
+.miss{margin:10px 0 0;font-size:13.5px;color:var(--muted)}
+.miss summary{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.miss p{font-size:13.5px;margin:8px 0 0;user-select:all}
+
+.crumbs{display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:14px}
+.crumbs .back{margin:0;text-align:left}
+.crumbs [data-back]{font-weight:600;color:var(--navy)}
+
+/* in a picked view the titles and scores are meant to be read from across the room */
+.node.lit .cap,.node.sel .cap{font-size:24px;line-height:1.08;white-space:normal;width:max-content;max-width:220px;text-align:center;padding:4px 9px;top:calc(100% + 16px)}
+.node.sel .cap{top:calc(112% + 18px)}
+.node.lit .fmt,.node.sel .fmt{font-size:22px;padding:2px 8px;left:-12px;bottom:-12px;border-radius:4px}
+
+/* bio card */
+#bio{position:absolute;right:14px;bottom:14px;width:min(340px,calc(100% - 28px));max-height:calc(100% - 90px);overflow:auto;padding:16px 18px 14px;
+  background:var(--paper);color:var(--navy);border-radius:4px;box-shadow:0 10px 30px rgba(3,10,20,.6);cursor:auto}
+#bio[hidden]{display:none}
+#bio h4{font:700 26px/1.05 var(--cond);margin:0 28px 10px 0}
+#bio .role{display:flex;align-items:center;gap:7px;margin:0 0 2px;font:500 14px var(--cond);color:var(--muted)}
+#bio .role i{width:14px;height:3px;border-radius:2px;background:var(--c)}
+#bio img{float:right;width:84px;margin:2px 0 8px 12px;border-radius:2px}
+#bio p{font-size:14.5px;line-height:1.45;margin:0 0 10px}
+#bio .quiet,#bio .src{color:var(--muted)}
+#bio .src{font-size:13px;margin:0;clear:both}
+#bio a{color:var(--navy)}
+#bio .x{position:absolute;right:8px;top:6px;width:30px;height:30px;border:0;background:none;font:400 24px/1 var(--body);color:var(--muted)}
+#bio .x:hover{color:var(--navy)}
+aside .role{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 4px;font:500 15px var(--cond);color:var(--muted)}
+aside .role span{display:inline-flex;align-items:center;gap:7px}
+aside .role i{width:14px;height:3px;border-radius:2px;background:var(--c)}
+.pbio{margin-top:10px}
+.pbio img{float:right;width:92px;margin:2px 0 8px 14px;border-radius:2px}
+.pbio .quiet,.pbio .src{color:var(--muted)}
+.pbio .src{font-size:13px;clear:both}
+.pbio a{color:var(--navy)}
+.pbio::after{content:"";display:block;clear:both}
+.who{border:0;background:none;padding:0;font:inherit;color:inherit;text-align:left;text-decoration:underline dotted;text-decoration-color:#93a4b6;text-underline-offset:3px}
+.who:hover{text-decoration-style:solid;text-decoration-color:currentColor}
+
+/* panel */
+aside{background:var(--paper);overflow-y:auto;padding:26px 24px 40px;border-left:1px solid #000}
+h1{font:700 36px/.98 var(--cond);margin:0 0 8px;letter-spacing:-.01em;text-wrap:balance}
+h2{font:700 34px/1 var(--cond);margin:0 0 6px;text-wrap:balance}
+h3{font:600 17px/1.2 var(--cond);margin:26px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+p{margin:0 0 10px;line-height:1.45;font-size:15px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:16px}
+.tag{display:inline-block;padding:0 6px;margin-left:4px;border-radius:2px;font:700 12px/1.5 var(--cond);background:#31465e;color:#fff;vertical-align:1px}
+.tag.f4K{background:var(--gold);color:#201500}.tag.fBlu-ray{background:#2f7fd6}.tag.fCriterion{background:#fff;color:#111;border:1px solid #111}
+/* poster billing block */
+dl.bill{margin:0;font-family:var(--cond)}
+dl.bill div{display:grid;grid-template-columns:104px 1fr;gap:8px;padding:3px 0}
+dl.bill dt{font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:2px}
+dl.bill dd{margin:0;font-size:17px;font-weight:600;line-height:1.2}
+ul.links,ul.top{list-style:none;margin:0;padding:0}
+ul.links>li{padding:8px 0;border-bottom:1px solid var(--line)}
+ul.links>li:last-child{border-bottom:0}
+.go{display:block;width:100%;text-align:left;border:0;background:none;padding:0;font:600 18px/1.2 var(--cond)}
+.go span{font-weight:500;color:var(--muted);margin-left:4px}
+.go:hover{text-decoration:underline}
+.why{margin:3px 0 0;padding:0;list-style:none;font-size:14px;line-height:1.4}
+.why li{display:flex;gap:7px;align-items:baseline}
+.why i{flex:none;width:12px;height:3px;border-radius:2px;background:var(--c);transform:translateY(-3px)}
+.why em{font-style:normal;color:var(--muted)}
+ul.top li{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0}
+ul.top .n{font:600 15px var(--cond);color:var(--muted)}
+ul.how{margin:0 0 4px;padding-left:18px;font-size:15px;line-height:1.5}
+.back{border:0;background:none;padding:0;margin-bottom:14px;color:var(--muted);font-size:14px;text-decoration:underline}
+
+@media (max-width:820px){
+  body{grid-template-columns:1fr;grid-template-rows:56vh 44vh}
+  aside{border-left:0;border-top:1px solid #000;padding:18px 18px 30px}
+  h1{font-size:34px} h2{font-size:28px}
+  #find{width:110px}
+}
+@media (prefers-reduced-motion:reduce){.pin,.node,.cap{transition:none}}
+</style>
+</head>
+<body>
+<main id="stage" aria-label="Web of movies rated on The Confused Breakfast">
+  <canvas id="threads"></canvas>
+  <div id="world"></div>
+  <canvas id="labels"></canvas>
+  <div id="bar"></div>
+  <div id="bio" hidden></div>
+  <div id="zoom">
+    <button type="button" data-z="out" aria-label="Zoom out">&minus;</button>
+    <button type="button" data-z="in" aria-label="Zoom in">+</button>
+    <button id="fit" type="button">Show everything</button>
+    <button id="reset" type="button">Reset layout</button>
+  </div>
+</main>
+<aside id="panel" aria-live="polite"></aside>
+
+<script>
+/* ---------- THE SHELF ----------
+   One entry per disc. Claude updates this list when a movie is added.
+   t title, y year, c category (your spreadsheet), f format, w Wikipedia page (poster lookup),
+   d director, wr writer, m composer, dp cinematographer, ed editor, cast top-billed, sup supporting cast, s studio, fr franchise */
+const SHELF = [
+{"t":"Dazed and Confused","cb":"Dazed and Confused","y":1993,"w":"Dazed and Confused (film)","g":["Comedy"],"d":["Richard Linklater"],"wr":["Richard Linklater"],"m":[],"dp":["Lee Daniel"],"cast":["Jason London","Wiley Wiggins","Matthew McConaughey","Ben Affleck","Parker Posey","Rory Cochrane"],"r":{"all":9.5,"mike":9.1,"sean":10.0,"aj":9.4}},
+{"t":"The Big Lebowski","cb":"The Big Lebowski","y":1998,"w":"The Big Lebowski","g":["Comedy","Crime"],"d":["Joel Coen","Ethan Coen"],"wr":["Joel Coen","Ethan Coen"],"m":["Carter Burwell"],"dp":["Roger Deakins"],"cast":["Jeff Bridges","John Goodman","Julianne Moore","Steve Buscemi","John Turturro","Philip Seymour Hoffman"],"r":{"all":9.47,"mike":8.9,"sean":10.0,"aj":9.6}},
+{"t":"Pulp Fiction","cb":"Pulp Fiction","y":1994,"w":"Pulp Fiction","g":["Crime"],"d":["Quentin Tarantino"],"wr":["Quentin Tarantino","Roger Avary"],"m":[],"dp":["Andrzej Sekula"],"cast":["John Travolta","Samuel L. Jackson","Uma Thurman","Bruce Willis","Harvey Keitel","Tim Roth"],"r":{"all":9.4,"mike":9.4,"sean":10.0,"aj":9.7}},
+{"t":"Saving Private Ryan","cb":"Saving Private Ryan","y":1998,"w":"Saving Private Ryan","g":["War","Drama"],"d":["Steven Spielberg"],"wr":["Robert Rodat"],"m":["John Williams"],"dp":["Janusz Kaminski"],"cast":["Tom Hanks","Matt Damon","Tom Sizemore","Edward Burns","Barry Pepper","Giovanni Ribisi","Vin Diesel"],"r":{"all":9.33,"mike":8.6,"sean":9.4,"aj":9.4}},
+{"t":"Goodfellas","cb":"Goodfellas","y":1990,"w":"Goodfellas","g":["Crime"],"d":["Martin Scorsese"],"wr":["Nicholas Pileggi","Martin Scorsese"],"m":[],"dp":["Michael Ballhaus"],"cast":["Robert De Niro","Ray Liotta","Joe Pesci","Lorraine Bracco","Paul Sorvino"],"r":{"all":9.27,"mike":9.05,"sean":9.7,"aj":9.05}},
+{"t":"The Breakfast Club","cb":"The Breakfast Club","y":1985,"w":"The Breakfast Club","g":["Comedy","Drama"],"d":["John Hughes"],"wr":["John Hughes"],"m":["Keith Forsey"],"dp":["Thomas Del Ruth"],"cast":["Emilio Estevez","Molly Ringwald","Judd Nelson","Anthony Michael Hall","Ally Sheedy","Paul Gleason"],"r":{"all":9.27,"mike":8.5,"sean":9.5,"aj":9.8}},
+{"t":"American Movie","cb":"American Movie","y":1999,"w":"American Movie","g":["Documentary","Comedy"],"d":["Chris Smith"],"wr":[],"m":[],"dp":["Chris Smith"],"cast":["Mark Borchardt","Mike Schank"],"r":{"all":9.26,"mike":8.79,"sean":10.0,"aj":9.0}},
+{"t":"Back to the Future","cb":"Back to the Future","y":1985,"w":"Back to the Future","g":["Sci-Fi","Comedy"],"d":["Robert Zemeckis"],"wr":["Robert Zemeckis","Bob Gale"],"m":["Alan Silvestri"],"dp":["Dean Cundey"],"cast":["Michael J. Fox","Christopher Lloyd","Lea Thompson","Crispin Glover","Thomas F. Wilson"],"r":{"all":9.18,"mike":9.6,"sean":8.5,"aj":9.6}},
+{"t":"Terminator 2: Judgment Day","cb":"T2: Judgement Day","y":1991,"w":"Terminator 2: Judgment Day","g":["Sci-Fi","Action"],"d":["James Cameron"],"wr":["James Cameron","William Wisher"],"m":["Brad Fiedel"],"dp":["Adam Greenberg"],"cast":["Arnold Schwarzenegger","Linda Hamilton","Edward Furlong","Robert Patrick","Joe Morton"],"r":{"all":9.16,"mike":8.3,"sean":9.6,"aj":9.6}},
+{"t":"The Social Network","cb":"Social Network","y":2010,"w":"The Social Network","g":["Drama"],"d":["David Fincher"],"wr":["Aaron Sorkin"],"m":["Trent Reznor","Atticus Ross"],"dp":["Jeff Cronenweth"],"cast":["Jesse Eisenberg","Andrew Garfield","Justin Timberlake","Armie Hammer","Rooney Mara"],"r":{"all":9.12,"mike":8.55,"sean":9.8,"aj":9.0}},
+{"t":"Shaun of the Dead","cb":"Shaun of the Dead","y":2004,"w":"Shaun of the Dead","g":["Comedy","Horror"],"d":["Edgar Wright"],"wr":["Edgar Wright","Simon Pegg"],"m":["Daniel Mudford","Pete Woodhead"],"dp":["David M. Dunlap"],"cast":["Simon Pegg","Nick Frost","Kate Ashfield","Lucy Davis","Dylan Moran","Bill Nighy"],"r":{"all":9.09,"mike":8.86,"sean":9.5,"aj":9.5}},
+{"t":"Inglourious Basterds","cb":"Inglorious Basterds","y":2009,"w":"Inglourious Basterds","g":["War"],"d":["Quentin Tarantino"],"wr":["Quentin Tarantino"],"m":[],"dp":["Robert Richardson"],"cast":["Brad Pitt","Christoph Waltz","Melanie Laurent","Michael Fassbender","Eli Roth","Diane Kruger"],"r":{"all":9.08,"mike":8.7,"sean":8.7,"aj":9.5}},
+{"t":"The Silence of the Lambs","cb":"Silence of the Lambs","y":1991,"w":"The Silence of the Lambs (film)","g":["Thriller","Horror"],"d":["Jonathan Demme"],"wr":["Ted Tally"],"m":["Howard Shore"],"dp":["Tak Fujimoto"],"cast":["Jodie Foster","Anthony Hopkins","Scott Glenn","Ted Levine"],"r":{"all":9.06,"mike":9.3,"sean":9.6,"aj":9.1}},
+{"t":"Boogie Nights","cb":"Boogie Nights","y":1997,"w":"Boogie Nights","g":["Drama"],"d":["Paul Thomas Anderson"],"wr":["Paul Thomas Anderson"],"m":["Michael Penn"],"dp":["Robert Elswit"],"cast":["Mark Wahlberg","Julianne Moore","Burt Reynolds","Don Cheadle","John C. Reilly","William H. Macy","Heather Graham","Philip Seymour Hoffman"],"r":{"all":9.06,"mike":8.7,"sean":9.9,"aj":8.74}},
+{"t":"The Goonies","cb":"The Goonies","y":1985,"w":"The Goonies","g":["Adventure","Family"],"d":["Richard Donner"],"wr":["Chris Columbus"],"m":["Dave Grusin"],"dp":["Nick McLean"],"cast":["Sean Astin","Josh Brolin","Corey Feldman","Jeff Cohen","Kerri Green","Martha Plimpton","Ke Huy Quan"],"r":{"all":9.03,"mike":9.2,"sean":8.5,"aj":9.4}},
+{"t":"Heat","cb":"Heat","y":1995,"w":"Heat (1995 film)","g":["Crime","Action"],"d":["Michael Mann"],"wr":["Michael Mann"],"m":["Elliot Goldenthal"],"dp":["Dante Spinotti"],"cast":["Al Pacino","Robert De Niro","Val Kilmer","Jon Voight","Tom Sizemore","Ashley Judd"],"r":{"all":8.9,"mike":7.9,"sean":8.9,"aj":9.5}},
+{"t":"Seven","cb":"Seven","y":1995,"w":"Seven (1995 film)","g":["Thriller","Crime"],"d":["David Fincher"],"wr":["Andrew Kevin Walker"],"m":["Howard Shore"],"dp":["Darius Khondji"],"cast":["Brad Pitt","Morgan Freeman","Gwyneth Paltrow","Kevin Spacey"],"r":{"all":8.9,"mike":9.1,"sean":9.7,"aj":9.1}},
+{"t":"Snatch","cb":"Snatch","y":2000,"w":"Snatch (film)","g":["Crime","Comedy"],"d":["Guy Ritchie"],"wr":["Guy Ritchie"],"m":["John Murphy"],"dp":["Tim Maurice-Jones"],"cast":["Jason Statham","Brad Pitt","Benicio del Toro","Dennis Farina","Vinnie Jones","Stephen Graham"],"r":{"all":8.88,"mike":8.75,"sean":8.5,"aj":8.95}},
+{"t":"Fight Club","cb":"Fight Club","y":1999,"w":"Fight Club","g":["Drama","Thriller"],"d":["David Fincher"],"wr":["Jim Uhls"],"m":["The Dust Brothers"],"dp":["Jeff Cronenweth"],"cast":["Brad Pitt","Edward Norton","Helena Bonham Carter","Meat Loaf","Jared Leto"],"r":{"all":8.87,"mike":9.01,"sean":7.7,"aj":8.75}},
+{"t":"Reservoir Dogs","cb":"Reservoir Dogs","y":1992,"w":"Reservoir Dogs","g":["Crime"],"d":["Quentin Tarantino"],"wr":["Quentin Tarantino"],"m":[],"dp":["Andrzej Sekula"],"cast":["Harvey Keitel","Tim Roth","Michael Madsen","Steve Buscemi","Chris Penn","Lawrence Tierney"],"r":{"all":8.87,"mike":8.4,"sean":9.0,"aj":9.2}},
+{"t":"The Shining","cb":"The Shining","y":1980,"w":"The Shining (film)","g":["Horror"],"d":["Stanley Kubrick"],"wr":["Stanley Kubrick","Diane Johnson"],"m":["Wendy Carlos","Rachel Elkind"],"dp":["John Alcott"],"cast":["Jack Nicholson","Shelley Duvall","Danny Lloyd","Scatman Crothers"],"r":{"all":8.87,"mike":7.2,"sean":10.0,"aj":8.4}},
+{"t":"The Lord of the Rings: The Two Towers","cb":"Lord of the Rings - Two Towers","y":2002,"w":"The Lord of the Rings: The Two Towers","g":["Fantasy","Adventure"],"d":["Peter Jackson"],"wr":["Fran Walsh","Philippa Boyens","Stephen Sinclair","Peter Jackson"],"m":["Howard Shore"],"dp":["Andrew Lesnie"],"cast":["Elijah Wood","Ian McKellen","Viggo Mortensen","Sean Astin","Andy Serkis","Orlando Bloom"],"r":{"all":8.8,"mike":9.6,"sean":7.5,"aj":9.4}},
+{"t":"Dumb and Dumber","cb":"Dumb and Dumber","y":1994,"w":"Dumb and Dumber","g":["Comedy"],"d":["Peter Farrelly"],"wr":["Peter Farrelly","Bobby Farrelly","Bennett Yellin"],"m":["Todd Rundgren"],"dp":["Mark Irwin"],"cast":["Jim Carrey","Jeff Daniels","Lauren Holly","Mike Starr","Karen Duffy"],"r":{"all":8.74,"mike":8.8,"sean":8.0,"aj":9.4}},
+{"t":"The Departed","cb":"The Departed","y":2006,"w":"The Departed","g":["Crime","Thriller"],"d":["Martin Scorsese"],"wr":["William Monahan"],"m":["Howard Shore"],"dp":["Michael Ballhaus"],"cast":["Leonardo DiCaprio","Matt Damon","Jack Nicholson","Mark Wahlberg","Martin Sheen","Vera Farmiga","Alec Baldwin"],"r":{"all":8.74,"mike":8.3,"sean":7.9,"aj":9.15}},
+{"t":"The Lord of the Rings: The Fellowship of the Ring","cb":"Lord of the Rings: Fellowship","y":2001,"w":"The Lord of the Rings: The Fellowship of the Ring","g":["Fantasy","Adventure"],"d":["Peter Jackson"],"wr":["Fran Walsh","Philippa Boyens","Peter Jackson"],"m":["Howard Shore"],"dp":["Andrew Lesnie"],"cast":["Elijah Wood","Ian McKellen","Viggo Mortensen","Sean Astin","Sean Bean","Orlando Bloom"],"r":{"all":8.72,"mike":8.81,"sean":9.2,"aj":9.35}},
+{"t":"Alien","cb":"Alien","y":1979,"w":"Alien (film)","g":["Sci-Fi","Horror"],"d":["Ridley Scott"],"wr":["Dan O'Bannon"],"m":["Jerry Goldsmith"],"dp":["Derek Vanlint"],"cast":["Sigourney Weaver","Tom Skerritt","John Hurt","Ian Holm","Harry Dean Stanton","Yaphet Kotto","Veronica Cartwright"],"r":{"all":8.71,"mike":8.05,"sean":8.9,"aj":8.9}},
+{"t":"Caddyshack","cb":"Caddyshack","y":1980,"w":"Caddyshack","g":["Comedy","Sports"],"d":["Harold Ramis"],"wr":["Brian Doyle-Murray","Harold Ramis","Douglas Kenney"],"m":["Johnny Mandel"],"dp":["Stevan Larner"],"cast":["Chevy Chase","Rodney Dangerfield","Ted Knight","Bill Murray","Michael O'Keefe"],"r":{"all":8.68,"mike":8.2,"sean":7.8,"aj":8.7}},
+{"t":"The Sandlot","cb":"The Sandlot","y":1993,"w":"The Sandlot","g":["Family","Sports","Comedy"],"d":["David Mickey Evans"],"wr":["David Mickey Evans","Robert Gunter"],"m":["David Newman"],"dp":["Anthony B. Richmond"],"cast":["Tom Guiry","Mike Vitar","Patrick Renna","Karen Allen","Denis Leary","James Earl Jones"],"r":{"all":8.66,"mike":8.0,"sean":9.5,"aj":8.5}},
+{"t":"Aliens","cb":"Aliens","y":1986,"w":"Aliens (film)","g":["Sci-Fi","Action"],"d":["James Cameron"],"wr":["James Cameron"],"m":["James Horner"],"dp":["Adrian Biddle"],"cast":["Sigourney Weaver","Michael Biehn","Paul Reiser","Lance Henriksen","Bill Paxton","Carrie Henn"],"r":{"all":8.62,"mike":8.05,"sean":8.9,"aj":8.9}},
+{"t":"Halloween","cb":"Halloween","y":1978,"w":"Halloween (1978 film)","g":["Horror"],"d":["John Carpenter"],"wr":["John Carpenter","Debra Hill"],"m":["John Carpenter"],"dp":["Dean Cundey"],"cast":["Jamie Lee Curtis","Donald Pleasence","P.J. Soles","Nancy Kyes"],"r":{"all":8.55,"mike":8.15,"sean":10.0,"aj":7.75}},
+{"t":"Raiders of the Lost Ark","cb":"Raiders of the Lost Ark","y":1981,"w":"Raiders of the Lost Ark","g":["Adventure","Action"],"d":["Steven Spielberg"],"wr":["Lawrence Kasdan"],"m":["John Williams"],"dp":["Douglas Slocombe"],"cast":["Harrison Ford","Karen Allen","Paul Freeman","John Rhys-Davies","Denholm Elliott"],"r":{"all":8.54,"mike":8.55,"sean":8.49,"aj":8.3}},
+{"t":"Back to the Future Part II","cb":"Back to the Future 2","y":1989,"w":"Back to the Future Part II","g":["Sci-Fi","Comedy"],"d":["Robert Zemeckis"],"wr":["Bob Gale"],"m":["Alan Silvestri"],"dp":["Dean Cundey"],"cast":["Michael J. Fox","Christopher Lloyd","Lea Thompson","Thomas F. Wilson","Elisabeth Shue"],"r":{"all":8.53,"mike":8.85,"sean":8.5,"aj":9.6}},
+{"t":"Home Alone","cb":"Home Alone","y":1990,"w":"Home Alone","g":["Comedy","Family","Christmas"],"d":["Chris Columbus"],"wr":["John Hughes"],"m":["John Williams"],"dp":["Julio Macat"],"cast":["Macaulay Culkin","Joe Pesci","Daniel Stern","Catherine O'Hara","John Heard"],"r":{"all":8.53,"mike":7.9,"sean":9.5,"aj":8.2}},
+{"t":"Jurassic Park","cb":"Jurassic Park","y":1993,"w":"Jurassic Park (film)","g":["Sci-Fi","Adventure"],"d":["Steven Spielberg"],"wr":["Michael Crichton","David Koepp"],"m":["John Williams"],"dp":["Dean Cundey"],"cast":["Sam Neill","Laura Dern","Jeff Goldblum","Richard Attenborough","Samuel L. Jackson"],"r":{"all":8.53,"mike":7.0,"sean":9.5,"aj":8.3}},
+{"t":"The Sting","cb":"The Sting","y":1973,"w":"The Sting","g":["Crime","Comedy"],"d":["George Roy Hill"],"wr":["David S. Ward"],"m":["Marvin Hamlisch"],"dp":["Robert Surtees"],"cast":["Paul Newman","Robert Redford","Robert Shaw","Charles Durning","Ray Walston","Eileen Brennan"],"r":{"all":8.53,"mike":8.4,"sean":8.1,"aj":8.6}},
+{"t":"Black Hawk Down","cb":"Blackhawk Down","y":2001,"w":"Black Hawk Down (film)","g":["War","Action"],"d":["Ridley Scott"],"wr":["Ken Nolan"],"m":["Hans Zimmer"],"dp":["Slawomir Idziak"],"cast":["Josh Hartnett","Ewan McGregor","Eric Bana","Tom Sizemore","William Fichtner","Sam Shepard"],"r":{"all":8.51,"mike":7.75,"sean":7.9,"aj":9.0}},
+{"t":"The Matrix","cb":"The Matrix","y":1999,"w":"The Matrix","g":["Sci-Fi","Action"],"d":["Lana Wachowski","Lilly Wachowski"],"wr":["Lana Wachowski","Lilly Wachowski"],"m":["Don Davis"],"dp":["Bill Pope"],"cast":["Keanu Reeves","Laurence Fishburne","Carrie-Anne Moss","Hugo Weaving","Joe Pantoliano"],"r":{"all":8.47,"mike":7.46,"sean":9.5,"aj":7.3}},
+{"t":"Stand by Me","cb":"Stand By Me","y":1986,"w":"Stand by Me (film)","g":["Drama","Adventure"],"d":["Rob Reiner"],"wr":["Raynold Gideon","Bruce A. Evans"],"m":["Jack Nitzsche"],"dp":["Thomas Del Ruth"],"cast":["Wil Wheaton","River Phoenix","Corey Feldman","Jerry O'Connell","Kiefer Sutherland","Richard Dreyfuss"],"r":{"all":8.46,"mike":8.1,"sean":8.5,"aj":8.8}},
+{"t":"Star Wars","cb":"Star Wars: A New Hope","y":1977,"w":"Star Wars (film)","g":["Sci-Fi","Adventure"],"d":["George Lucas"],"wr":["George Lucas"],"m":["John Williams"],"dp":["Gilbert Taylor"],"cast":["Mark Hamill","Harrison Ford","Carrie Fisher","Alec Guinness","Peter Cushing","James Earl Jones"],"r":{"all":8.46,"mike":7.4,"sean":7.8,"aj":9.33}},
+{"t":"True Romance","cb":"True Romance","y":1993,"w":"True Romance","g":["Crime","Romance"],"d":["Tony Scott"],"wr":["Quentin Tarantino"],"m":["Hans Zimmer"],"dp":["Jeffrey L. Kimball"],"cast":["Christian Slater","Patricia Arquette","Dennis Hopper","Val Kilmer","Gary Oldman","Brad Pitt","Christopher Walken"],"r":{"all":8.45,"mike":8.35,"sean":8.9,"aj":8.1}},
+{"t":"Wet Hot American Summer","cb":"Wet Hot American Summer","y":2001,"w":"Wet Hot American Summer","g":["Comedy"],"d":["David Wain"],"wr":["David Wain","Michael Showalter"],"m":["Theodore Shapiro","Craig Wedren"],"dp":["Ben Weinstein"],"cast":["Janeane Garofalo","David Hyde Pierce","Michael Showalter","Paul Rudd","Christopher Meloni","Bradley Cooper","Amy Poehler","Molly Shannon"],"r":{"all":8.44,"mike":8.2,"sean":8.2,"aj":8.85}},
+{"t":"Rocky","cb":"Rocky","y":1976,"w":"Rocky","g":["Sports","Drama"],"d":["John G. Avildsen"],"wr":["Sylvester Stallone"],"m":["Bill Conti"],"dp":["James Crabe"],"cast":["Sylvester Stallone","Talia Shire","Burt Young","Carl Weathers","Burgess Meredith"],"r":{"all":8.39,"mike":7.95,"sean":7.96,"aj":9.5}},
+{"t":"The Terminator","cb":"Terminator","y":1984,"w":"The Terminator","g":["Sci-Fi","Action"],"d":["James Cameron"],"wr":["James Cameron","Gale Anne Hurd"],"m":["Brad Fiedel"],"dp":["Adam Greenberg"],"cast":["Arnold Schwarzenegger","Michael Biehn","Linda Hamilton","Paul Winfield","Lance Henriksen"],"r":{"all":8.35,"mike":8.1,"sean":8.6,"aj":7.95}},
+{"t":"A League of Their Own","cb":"A League of Their Own","y":1992,"w":"A League of Their Own","g":["Comedy","Sports"],"d":["Penny Marshall"],"wr":["Lowell Ganz","Babaloo Mandel"],"m":["Hans Zimmer"],"dp":["Miroslav Ondricek"],"cast":["Tom Hanks","Geena Davis","Madonna","Lori Petty","Jon Lovitz","Rosie O'Donnell"],"r":{"all":8.34,"mike":8.02,"sean":7.5,"aj":8.55}},
+{"t":"Uncle Buck","cb":"Uncle Buck","y":1989,"w":"Uncle Buck","g":["Comedy","Family"],"d":["John Hughes"],"wr":["John Hughes"],"m":["Ira Newborn"],"dp":["Ralf D. Bode"],"cast":["John Candy","Macaulay Culkin","Jean Louisa Kelly","Amy Madigan","Gaby Hoffmann"],"r":{"all":8.33,"mike":7.0,"sean":8.8,"aj":9.2}},
+{"t":"Casino","cb":"Casino","y":1995,"w":"Casino (1995 film)","g":["Crime"],"d":["Martin Scorsese"],"wr":["Nicholas Pileggi","Martin Scorsese"],"m":[],"dp":["Robert Richardson"],"cast":["Robert De Niro","Sharon Stone","Joe Pesci","James Woods","Don Rickles"],"r":{"all":8.33,"mike":8.0,"sean":9.0,"aj":9.05}},
+{"t":"Die Hard","cb":"Die Hard","y":1988,"w":"Die Hard","g":["Action","Christmas"],"d":["John McTiernan"],"wr":["Jeb Stuart","Steven E. de Souza"],"m":["Michael Kamen"],"dp":["Jan de Bont"],"cast":["Bruce Willis","Alan Rickman","Bonnie Bedelia","Reginald VelJohnson","Alexander Godunov"],"r":{"all":8.31,"mike":8.2,"sean":9.6,"aj":8.95}},
+{"t":"Donnie Darko","cb":"Donnie Darko","y":2001,"w":"Donnie Darko","g":["Sci-Fi","Drama"],"d":["Richard Kelly"],"wr":["Richard Kelly"],"m":["Michael Andrews"],"dp":["Steven Poster"],"cast":["Jake Gyllenhaal","Jena Malone","Drew Barrymore","Mary McDonnell","Patrick Swayze","Maggie Gyllenhaal"],"r":{"all":8.31,"mike":9.0,"sean":8.1,"aj":8.2}},
+{"t":"RoboCop","cb":"Robocop","y":1987,"w":"RoboCop","g":["Sci-Fi","Action"],"d":["Paul Verhoeven"],"wr":["Edward Neumeier","Michael Miner"],"m":["Basil Poledouris"],"dp":["Jost Vacano"],"cast":["Peter Weller","Nancy Allen","Ronny Cox","Kurtwood Smith","Miguel Ferrer"],"r":{"all":8.3,"mike":7.9,"sean":9.8,"aj":7.25}},
+{"t":"Forrest Gump","cb":"Forrest Gump","y":1994,"w":"Forrest Gump","g":["Drama"],"d":["Robert Zemeckis"],"wr":["Eric Roth"],"m":["Alan Silvestri"],"dp":["Don Burgess"],"cast":["Tom Hanks","Robin Wright","Gary Sinise","Mykelti Williamson","Sally Field"],"r":{"all":8.29,"mike":8.6,"sean":7.1,"aj":9.05}},
+{"t":"The Wedding Singer","cb":"The Wedding Singer","y":1998,"w":"The Wedding Singer","g":["Comedy","Romance"],"d":["Frank Coraci"],"wr":["Tim Herlihy"],"m":["Teddy Castellucci"],"dp":["Tim Suhrstedt"],"cast":["Adam Sandler","Drew Barrymore","Christine Taylor","Allen Covert","Steve Buscemi"],"r":{"all":8.26,"mike":8.0,"sean":7.5,"aj":9.3}},
+{"t":"Jaws","cb":"Jaws","y":1975,"w":"Jaws (film)","g":["Thriller","Adventure"],"d":["Steven Spielberg"],"wr":["Peter Benchley","Carl Gottlieb"],"m":["John Williams"],"dp":["Bill Butler"],"cast":["Roy Scheider","Robert Shaw","Richard Dreyfuss","Lorraine Gary","Murray Hamilton"],"r":{"all":8.25,"mike":8.6,"sean":8.8,"aj":7.1}},
+{"t":"Ferris Bueller's Day Off","cb":"Ferris Bueller's Day Off","y":1986,"w":"Ferris Bueller's Day Off","g":["Comedy"],"d":["John Hughes"],"wr":["John Hughes"],"m":["Ira Newborn"],"dp":["Tak Fujimoto"],"cast":["Matthew Broderick","Alan Ruck","Mia Sara","Jeffrey Jones","Jennifer Grey"],"r":{"all":8.25,"mike":7.2,"sean":9.6,"aj":9.1}},
+{"t":"Bill & Ted's Excellent Adventure","cb":"Bill and Ted's Excellent Adventure","y":1989,"w":"Bill & Ted's Excellent Adventure","g":["Comedy","Sci-Fi"],"d":["Stephen Herek"],"wr":["Chris Matheson","Ed Solomon"],"m":["David Newman"],"dp":["Tim Suhrstedt"],"cast":["Keanu Reeves","Alex Winter","George Carlin"],"r":{"all":8.24,"mike":8.5,"sean":8.8,"aj":7.1}},
+{"t":"Gladiator","cb":"Gladiator","y":2000,"w":"Gladiator (2000 film)","g":["Action","Drama"],"d":["Ridley Scott"],"wr":["David Franzoni","John Logan","William Nicholson"],"m":["Hans Zimmer","Lisa Gerrard"],"dp":["John Mathieson"],"cast":["Russell Crowe","Joaquin Phoenix","Connie Nielsen","Oliver Reed","Djimon Hounsou"],"r":{"all":8.22,"mike":8.65,"sean":7.8,"aj":8.22}},
+{"t":"The Blues Brothers","cb":"Blues Brothers","y":1980,"w":"The Blues Brothers (film)","g":["Comedy","Musical"],"d":["John Landis"],"wr":["Dan Aykroyd","John Landis"],"m":[],"dp":["Stephen M. Katz"],"cast":["John Belushi","Dan Aykroyd","Carrie Fisher","John Candy","Henry Gibson"],"r":{"all":8.2,"mike":8.45,"sean":9.2,"aj":7.3}},
+{"t":"Lethal Weapon","cb":"Lethal Weapon","y":1987,"w":"Lethal Weapon","g":["Action"],"d":["Richard Donner"],"wr":["Shane Black"],"m":["Michael Kamen","Eric Clapton"],"dp":["Stephen Goldblatt"],"cast":["Mel Gibson","Danny Glover","Gary Busey","Mitchell Ryan","Darlene Love"],"r":{"all":8.2,"mike":7.0,"sean":8.5,"aj":9.5}},
+{"t":"Office Space","cb":"Office Space","y":1999,"w":"Office Space","g":["Comedy"],"d":["Mike Judge"],"wr":["Mike Judge"],"m":["John Frizzell"],"dp":["Tim Suhrstedt"],"cast":["Ron Livingston","Jennifer Aniston","Stephen Root","Gary Cole","David Herman","Diedrich Bader"],"r":{"all":8.2,"mike":8.0,"sean":7.89,"aj":9.0}},
+{"t":"Fargo","cb":"Fargo","y":1996,"w":"Fargo (1996 film)","g":["Crime","Comedy"],"d":["Joel Coen","Ethan Coen"],"wr":["Joel Coen","Ethan Coen"],"m":["Carter Burwell"],"dp":["Roger Deakins"],"cast":["Frances McDormand","William H. Macy","Steve Buscemi","Peter Stormare","Harve Presnell"],"r":{"all":8.19,"mike":8.2,"sean":9.3,"aj":7.1}},
+{"t":"An American Werewolf in London","cb":"American Werewolf in London","y":1981,"w":"An American Werewolf in London","g":["Horror","Comedy"],"d":["John Landis"],"wr":["John Landis"],"m":["Elmer Bernstein"],"dp":["Robert Paynter"],"cast":["David Naughton","Jenny Agutter","Griffin Dunne","John Woodvine"],"r":{"all":8.18,"mike":7.8,"sean":9.6,"aj":7.15}},
+{"t":"Raising Arizona","cb":"Raising Arizona","y":1987,"w":"Raising Arizona","g":["Comedy","Crime"],"d":["Joel Coen","Ethan Coen"],"wr":["Joel Coen","Ethan Coen"],"m":["Carter Burwell"],"dp":["Barry Sonnenfeld"],"cast":["Nicolas Cage","Holly Hunter","John Goodman","William Forsythe","Frances McDormand"],"r":{"all":8.17,"mike":8.1,"sean":9.5,"aj":6.9}},
+{"t":"Big","cb":"Big","y":1988,"w":"Big (film)","g":["Comedy","Family"],"d":["Penny Marshall"],"wr":["Gary Ross","Anne Spielberg"],"m":["Howard Shore"],"dp":["Barry Sonnenfeld"],"cast":["Tom Hanks","Elizabeth Perkins","Robert Loggia","John Heard","Jared Rushton"],"r":{"all":8.16,"mike":8.0,"sean":9.0,"aj":7.5}},
+{"t":"The Rock","cb":"The Rock","y":1996,"w":"The Rock (film)","g":["Action"],"d":["Michael Bay"],"wr":["David Weisberg","Douglas S. Cook","Mark Rosner"],"m":["Nick Glennie-Smith","Hans Zimmer"],"dp":["John Schwartzman"],"cast":["Sean Connery","Nicolas Cage","Ed Harris","Michael Biehn","William Forsythe","David Morse"],"r":{"all":8.14,"mike":7.59,"sean":8.0,"aj":8.45}},
+{"t":"Ghostbusters","cb":"Ghostbusters","y":1984,"w":"Ghostbusters","g":["Comedy","Fantasy"],"d":["Ivan Reitman"],"wr":["Dan Aykroyd","Harold Ramis"],"m":["Elmer Bernstein"],"dp":["Laszlo Kovacs"],"cast":["Bill Murray","Dan Aykroyd","Sigourney Weaver","Harold Ramis","Rick Moranis","Ernie Hudson"],"r":{"all":8.13,"mike":7.7,"sean":8.0,"aj":8.7}},
+{"t":"Happy Gilmore","cb":"Happy Gilmore","y":1996,"w":"Happy Gilmore","g":["Comedy","Sports"],"d":["Dennis Dugan"],"wr":["Tim Herlihy","Adam Sandler"],"m":["Mark Mothersbaugh"],"dp":["Arthur Albert"],"cast":["Adam Sandler","Christopher McDonald","Julie Bowen","Carl Weathers","Frances Bay"],"r":{"all":8.11,"mike":7.65,"sean":7.3,"aj":8.1}},
+{"t":"Last Action Hero","cb":"Last Action Hero","y":1993,"w":"Last Action Hero","g":["Action","Comedy"],"d":["John McTiernan"],"wr":["Shane Black","David Arnott"],"m":["Michael Kamen"],"dp":["Dean Semler"],"cast":["Arnold Schwarzenegger","Austin O'Brien","Charles Dance","F. Murray Abraham","Tom Noonan"],"r":{"all":8.11,"mike":7.7,"sean":8.2,"aj":8.55}},
+{"t":"The Talented Mr. Ripley","cb":"Talented Mr. Ripley","y":1999,"w":"The Talented Mr. Ripley (film)","g":["Thriller","Drama"],"d":["Anthony Minghella"],"wr":["Anthony Minghella"],"m":["Gabriel Yared"],"dp":["John Seale"],"cast":["Matt Damon","Gwyneth Paltrow","Jude Law","Cate Blanchett","Philip Seymour Hoffman"],"r":{"all":8.11,"mike":8.25,"sean":7.88,"aj":7.8}},
+{"t":"Pee-wee's Big Adventure","cb":"Pee-Wee's Big Adventure","y":1985,"w":"Pee-wee's Big Adventure","g":["Comedy","Adventure"],"d":["Tim Burton"],"wr":["Phil Hartman","Paul Reubens","Michael Varhol"],"m":["Danny Elfman"],"dp":["Victor J. Kemper"],"cast":["Paul Reubens","Elizabeth Daily","Mark Holton","Diane Salinger"],"r":{"all":8.07,"mike":8.19,"sean":8.0,"aj":7.1}},
+{"t":"Role Models","cb":"Role Models","y":2008,"w":"Role Models","g":["Comedy"],"d":["David Wain"],"wr":["Paul Rudd","David Wain","Ken Marino","Timothy Dowling"],"m":["Craig Wedren"],"dp":["Russ T. Alsobrook"],"cast":["Seann William Scott","Paul Rudd","Christopher Mintz-Plasse","Jane Lynch","Elizabeth Banks"],"r":{"all":8.05,"mike":8.1,"sean":7.69,"aj":7.9}},
+{"t":"True Lies","cb":"True Lies","y":1994,"w":"True Lies","g":["Action","Comedy"],"d":["James Cameron"],"wr":["James Cameron"],"m":["Brad Fiedel"],"dp":["Russell Carpenter"],"cast":["Arnold Schwarzenegger","Jamie Lee Curtis","Tom Arnold","Bill Paxton","Tia Carrere"],"r":{"all":8.05,"mike":7.95,"sean":7.9,"aj":8.1}},
+{"t":"The Usual Suspects","cb":"The Usual Suspects","y":1995,"w":"The Usual Suspects","g":["Crime","Thriller"],"d":["Bryan Singer"],"wr":["Christopher McQuarrie"],"m":["John Ottman"],"dp":["Newton Thomas Sigel"],"cast":["Gabriel Byrne","Kevin Spacey","Stephen Baldwin","Benicio del Toro","Kevin Pollak","Chazz Palminteri"],"r":{"all":8.04,"mike":8.15,"sean":8.2,"aj":7.99}},
+{"t":"Field of Dreams","cb":"Field of Dreams","y":1989,"w":"Field of Dreams","g":["Drama","Sports","Fantasy"],"d":["Phil Alden Robinson"],"wr":["Phil Alden Robinson"],"m":["James Horner"],"dp":["John Lindley"],"cast":["Kevin Costner","Amy Madigan","James Earl Jones","Ray Liotta","Burt Lancaster"],"r":{"all":8.03,"mike":8.7,"sean":6.7,"aj":8.5}},
+{"t":"My Cousin Vinny","cb":"My Cousin Vinny","y":1992,"w":"My Cousin Vinny","g":["Comedy"],"d":["Jonathan Lynn"],"wr":["Dale Launer"],"m":["Randy Edelman"],"dp":["Peter Deming"],"cast":["Joe Pesci","Marisa Tomei","Ralph Macchio","Fred Gwynne","Mitchell Whitfield"],"r":{"all":8.03,"mike":7.6,"sean":7.7,"aj":7.95}},
+{"t":"Dawn of the Dead","cb":"Dawn of the Dead","y":1978,"w":"Dawn of the Dead (1978 film)","g":["Horror"],"d":["George A. Romero"],"wr":["George A. Romero"],"m":["Goblin"],"dp":["Michael Gornick"],"cast":["David Emge","Ken Foree","Scott Reiniger","Gaylen Ross"],"r":{"all":8.01,"mike":7.8,"sean":9.8,"aj":7.45}},
+{"t":"Lethal Weapon 2","cb":"Lethal Weapon 2","y":1989,"w":"Lethal Weapon 2","g":["Action"],"d":["Richard Donner"],"wr":["Jeffrey Boam"],"m":["Michael Kamen","Eric Clapton","David Sanborn"],"dp":["Stephen Goldblatt"],"cast":["Mel Gibson","Danny Glover","Joe Pesci","Joss Ackland","Patsy Kensit"],"r":{"all":8.01,"mike":8.1,"sean":8.8,"aj":9.0}},
+{"t":"Beetlejuice","cb":"Beetlejuice","y":1988,"w":"Beetlejuice","g":["Comedy","Fantasy"],"d":["Tim Burton"],"wr":["Michael McDowell","Warren Skaaren"],"m":["Danny Elfman"],"dp":["Thomas E. Ackerman"],"cast":["Michael Keaton","Alec Baldwin","Geena Davis","Winona Ryder","Catherine O'Hara","Jeffrey Jones"],"r":{"all":8.0,"mike":8.5,"sean":8.0,"aj":7.5}},
+{"t":"The Thing","cb":"The Thing","y":1982,"w":"The Thing (1982 film)","g":["Horror","Sci-Fi"],"d":["John Carpenter"],"wr":["Bill Lancaster"],"m":["Ennio Morricone"],"dp":["Dean Cundey"],"cast":["Kurt Russell","Keith David","Wilford Brimley","Donald Moffat"],"r":{"all":7.99,"mike":7.05,"sean":9.7,"aj":8.0}},
+{"t":"Home Alone 2: Lost in New York","cb":"Home Alone 2","y":1992,"w":"Home Alone 2: Lost in New York","g":["Comedy","Family","Christmas"],"d":["Chris Columbus"],"wr":["John Hughes"],"m":["John Williams"],"dp":["Julio Macat"],"cast":["Macaulay Culkin","Joe Pesci","Daniel Stern","Catherine O'Hara","Tim Curry","Brenda Fricker"],"r":{"all":7.99,"mike":7.49,"sean":7.7,"aj":9.25}},
+{"t":"American Graffiti","cb":"American Graffiti","y":1973,"w":"American Graffiti","g":["Comedy","Drama"],"d":["George Lucas"],"wr":["George Lucas","Gloria Katz","Willard Huyck"],"m":[],"dp":["Ron Eveslage","Jan D'Alquen"],"cast":["Richard Dreyfuss","Ron Howard","Paul Le Mat","Charles Martin Smith","Cindy Williams","Harrison Ford"],"r":{"all":7.95,"mike":8.0,"sean":8.0,"aj":8.6}},
+{"t":"Election","cb":"Election","y":1999,"w":"Election (1999 film)","g":["Comedy"],"d":["Alexander Payne"],"wr":["Alexander Payne","Jim Taylor"],"m":["Rolfe Kent"],"dp":["James Glennon"],"cast":["Matthew Broderick","Reese Witherspoon","Chris Klein","Jessica Campbell"],"r":{"all":7.94,"mike":8.1,"sean":7.8,"aj":7.35}},
+{"t":"Blazing Saddles","cb":"Blazing Saddles","y":1974,"w":"Blazing Saddles","g":["Comedy","Western"],"d":["Mel Brooks"],"wr":["Mel Brooks","Andrew Bergman","Richard Pryor","Norman Steinberg","Alan Uger"],"m":["John Morris"],"dp":["Joseph Biroc"],"cast":["Cleavon Little","Gene Wilder","Harvey Korman","Madeline Kahn","Slim Pickens"],"r":{"all":7.93,"mike":8.15,"sean":7.8,"aj":7.85}},
+{"t":"A Christmas Story","cb":"A Christmas Story","y":1983,"w":"A Christmas Story","g":["Comedy","Family","Christmas"],"d":["Bob Clark"],"wr":["Jean Shepherd","Leigh Brown","Bob Clark"],"m":["Carl Zittrer","Paul Zaza"],"dp":["Reginald H. Morris"],"cast":["Peter Billingsley","Melinda Dillon","Darren McGavin","Ian Petrella"],"r":{"all":7.9,"mike":7.5,"sean":8.0,"aj":8.2}},
+{"t":"The Princess Bride","cb":"The Princess Bride","y":1987,"w":"The Princess Bride (film)","g":["Fantasy","Adventure","Romance"],"d":["Rob Reiner"],"wr":["William Goldman"],"m":["Mark Knopfler"],"dp":["Adrian Biddle"],"cast":["Cary Elwes","Robin Wright","Mandy Patinkin","Chris Sarandon","Christopher Guest","Wallace Shawn","Andre the Giant"],"r":{"all":7.9,"mike":7.6,"sean":8.1,"aj":8.0}},
+{"t":"The Fugitive","cb":"The Fugitive","y":1993,"w":"The Fugitive (1993 film)","g":["Thriller","Action"],"d":["Andrew Davis"],"wr":["Jeb Stuart","David Twohy"],"m":["James Newton Howard"],"dp":["Michael Chapman"],"cast":["Harrison Ford","Tommy Lee Jones","Sela Ward","Joe Pantoliano","Jeroen Krabbe"],"r":{"all":7.87,"mike":8.3,"sean":7.5,"aj":8.3}},
+{"t":"Harry Potter and the Sorcerer's Stone","cb":"Harry Potter I","y":2001,"w":"Harry Potter and the Philosopher's Stone (film)","g":["Fantasy","Family"],"d":["Chris Columbus"],"wr":["Steve Kloves"],"m":["John Williams"],"dp":["John Seale"],"cast":["Daniel Radcliffe","Rupert Grint","Emma Watson","Richard Harris","Alan Rickman","Robbie Coltrane","Maggie Smith"],"r":{"all":7.86,"mike":6.9,"sean":7.89,"aj":7.9}},
+{"t":"American Psycho","cb":"American Psycho","y":2000,"w":"American Psycho (film)","g":["Thriller","Horror"],"d":["Mary Harron"],"wr":["Mary Harron","Guinevere Turner"],"m":["John Cale"],"dp":["Andrzej Sekula"],"cast":["Christian Bale","Willem Dafoe","Jared Leto","Josh Lucas","Chloe Sevigny","Reese Witherspoon"],"r":{"all":7.85,"mike":8.25,"sean":7.56,"aj":7.1}},
+{"t":"The Blair Witch Project","cb":"Blair Witch Project","y":1999,"w":"The Blair Witch Project","g":["Horror"],"d":["Daniel Myrick","Eduardo Sanchez"],"wr":["Daniel Myrick","Eduardo Sanchez"],"m":["Tony Cora"],"dp":["Neal Fredericks"],"cast":["Heather Donahue","Michael C. Williams","Joshua Leonard"],"r":{"all":7.84,"mike":7.99,"sean":8.7,"aj":7.7}},
+{"t":"Mrs. Doubtfire","cb":"Mrs. Doubtfire","y":1993,"w":"Mrs. Doubtfire","g":["Comedy","Family"],"d":["Chris Columbus"],"wr":["Randi Mayem Singer","Leslie Dixon"],"m":["Howard Shore"],"dp":["Donald McAlpine"],"cast":["Robin Williams","Sally Field","Pierce Brosnan","Harvey Fierstein","Robert Prosky"],"r":{"all":7.84,"mike":7.42,"sean":7.4,"aj":8.8}},
+{"t":"The Monster Squad","cb":"Monster Squad","y":1987,"w":"The Monster Squad","g":["Horror","Comedy","Family"],"d":["Fred Dekker"],"wr":["Shane Black","Fred Dekker"],"m":["Bruce Broughton"],"dp":["Bradford May"],"cast":["Andre Gower","Duncan Regehr","Stephen Macht","Tom Noonan","Stan Shaw"],"r":{"all":7.83,"mike":7.4,"sean":8.0,"aj":8.1}},
+{"t":"Blast from the Past","cb":"Blast From The Past","y":1999,"w":"Blast from the Past (film)","g":["Comedy","Romance"],"d":["Hugh Wilson"],"wr":["Bill Kelly","Hugh Wilson"],"m":["Steve Dorff"],"dp":["Jose Luis Alcaine"],"cast":["Brendan Fraser","Alicia Silverstone","Christopher Walken","Sissy Spacek","Dave Foley"],"r":{"all":7.81,"mike":8.0,"sean":7.2,"aj":8.05}},
+{"t":"Who Framed Roger Rabbit","cb":"Who Framed Roger Rabbit","y":1988,"w":"Who Framed Roger Rabbit","g":["Comedy","Family","Fantasy"],"d":["Robert Zemeckis"],"wr":["Jeffrey Price","Peter S. Seaman"],"m":["Alan Silvestri"],"dp":["Dean Cundey"],"cast":["Bob Hoskins","Christopher Lloyd","Charles Fleischer","Joanna Cassidy","Kathleen Turner"],"r":{"all":7.8,"mike":7.5,"sean":8.8,"aj":6.4}},
+{"t":"Little Shop of Horrors","cb":"Little Shop of Horrors","y":1986,"w":"Little Shop of Horrors (1986 film)","g":["Comedy","Musical","Horror"],"d":["Frank Oz"],"wr":["Howard Ashman"],"m":["Miles Goodman","Alan Menken"],"dp":["Robert Paynter"],"cast":["Rick Moranis","Ellen Greene","Vincent Gardenia","Steve Martin","Levi Stubbs","Bill Murray","John Candy"],"r":{"all":7.78,"mike":7.49,"sean":7.1,"aj":7.77}},
+{"t":"Remember the Titans","cb":"Remember the Titans","y":2000,"w":"Remember the Titans","g":["Sports","Drama"],"d":["Boaz Yakin"],"wr":["Gregory Allen Howard"],"m":["Trevor Rabin"],"dp":["Philippe Rousselot"],"cast":["Denzel Washington","Will Patton","Wood Harris","Ryan Hurst","Donald Faison","Ryan Gosling"],"r":{"all":7.78,"mike":7.6,"sean":7.79,"aj":7.7}},
+{"t":"A Knight's Tale","cb":"A Knight's Tale","y":2001,"w":"A Knight's Tale","g":["Adventure","Comedy","Romance"],"d":["Brian Helgeland"],"wr":["Brian Helgeland"],"m":["Carter Burwell"],"dp":["Richard Greatrex"],"cast":["Heath Ledger","Rufus Sewell","Shannyn Sossamon","Paul Bettany","Mark Addy","Alan Tudyk"],"r":{"all":7.77,"mike":7.43,"sean":7.7,"aj":7.7}},
+{"t":"Planes, Trains and Automobiles","cb":"Planes, Trains and Automobiles","y":1987,"w":"Planes, Trains and Automobiles","g":["Comedy"],"d":["John Hughes"],"wr":["John Hughes"],"m":["Ira Newborn"],"dp":["Donald Peterman"],"cast":["Steve Martin","John Candy","Laila Robins","Michael McKean","Kevin Bacon"],"r":{"all":7.76,"mike":7.18,"sean":8.0,"aj":8.1}},
+{"t":"Airplane!","cb":"Airplane!","y":1980,"w":"Airplane!","g":["Comedy"],"d":["Jim Abrahams","David Zucker","Jerry Zucker"],"wr":["Jim Abrahams","David Zucker","Jerry Zucker"],"m":["Elmer Bernstein"],"dp":["Joseph Biroc"],"cast":["Robert Hays","Julie Hagerty","Leslie Nielsen","Lloyd Bridges","Peter Graves","Robert Stack","Kareem Abdul-Jabbar"],"r":{"all":7.74,"mike":8.14,"sean":8.35,"aj":9.45}},
+{"t":"That Thing You Do!","cb":"That Thing You Do!","y":1996,"w":"That Thing You Do!","g":["Comedy","Drama","Musical"],"d":["Tom Hanks"],"wr":["Tom Hanks"],"m":["Howard Shore"],"dp":["Tak Fujimoto"],"cast":["Tom Everett Scott","Liv Tyler","Johnathon Schaech","Steve Zahn","Ethan Embry","Tom Hanks","Charlize Theron"],"r":{"all":7.73,"mike":7.7,"sean":7.3,"aj":7.05}},
+{"t":"Napoleon Dynamite","cb":"Napoleon Dynamite","y":2004,"w":"Napoleon Dynamite","g":["Comedy"],"d":["Jared Hess"],"wr":["Jared Hess","Jerusha Hess"],"m":["John Swihart"],"dp":["Munn Powell"],"cast":["Jon Heder","Jon Gries","Efren Ramirez","Tina Majorino","Aaron Ruell","Diedrich Bader"],"r":{"all":7.69,"mike":7.8,"sean":7.8,"aj":7.9}},
+{"t":"Spider-Man","cb":"Spider-man","y":2002,"w":"Spider-Man (2002 film)","g":["Action","Fantasy"],"d":["Sam Raimi"],"wr":["David Koepp"],"m":["Danny Elfman"],"dp":["Don Burgess"],"cast":["Tobey Maguire","Willem Dafoe","Kirsten Dunst","James Franco","J.K. Simmons","Rosemary Harris"],"r":{"all":7.69,"mike":7.6,"sean":7.8,"aj":8.45}},
+{"t":"Men in Black","cb":"Men In Black","y":1997,"w":"Men in Black (1997 film)","g":["Sci-Fi","Comedy","Action"],"d":["Barry Sonnenfeld"],"wr":["Ed Solomon"],"m":["Danny Elfman"],"dp":["Donald Peterman"],"cast":["Tommy Lee Jones","Will Smith","Linda Fiorentino","Vincent D'Onofrio","Rip Torn","Tony Shalhoub"],"r":{"all":7.68,"mike":7.5,"sean":7.8,"aj":7.75}},
+{"t":"Monty Python and the Holy Grail","cb":"Monty Python Holy Grail","y":1975,"w":"Monty Python and the Holy Grail","g":["Comedy","Fantasy"],"d":["Terry Gilliam","Terry Jones"],"wr":["Graham Chapman","John Cleese","Eric Idle","Terry Gilliam","Terry Jones","Michael Palin"],"m":[],"dp":["Terry Bedford"],"cast":["Graham Chapman","John Cleese","Eric Idle","Terry Gilliam","Terry Jones","Michael Palin"],"r":{"all":7.68,"mike":8.2,"sean":7.0,"aj":6.0}},
+{"t":"The Warriors","cb":"The Warriors","y":1979,"w":"The Warriors (film)","g":["Action","Crime"],"d":["Walter Hill"],"wr":["David Shaber","Walter Hill"],"m":["Barry De Vorzon"],"dp":["Andrew Laszlo"],"cast":["Michael Beck","James Remar","Deborah Van Valkenburgh","David Patrick Kelly"],"r":{"all":7.63,"mike":6.7,"sean":8.0,"aj":8.2}},
+{"t":"Ghost","cb":"Ghost","y":1990,"w":"Ghost (1990 film)","g":["Romance","Fantasy","Drama"],"d":["Jerry Zucker"],"wr":["Bruce Joel Rubin"],"m":["Maurice Jarre"],"dp":["Adam Greenberg"],"cast":["Patrick Swayze","Demi Moore","Whoopi Goldberg","Tony Goldwyn"],"r":{"all":7.62,"mike":7.2,"sean":8.1,"aj":7.55}},
+{"t":"Teenage Mutant Ninja Turtles","cb":"Teenage Mutant Ninja Turtles","y":1990,"w":"Teenage Mutant Ninja Turtles (1990 film)","g":["Action","Family","Comedy"],"d":["Steve Barron"],"wr":["Todd W. Langen","Bobby Herbeck"],"m":["John Du Prez"],"dp":["John Fenner"],"cast":["Judith Hoag","Elias Koteas","Corey Feldman","Josh Pais","Robbie Rist"],"r":{"all":7.6,"mike":8.0,"sean":6.9,"aj":7.9}},
+{"t":"Back to the Future Part III","cb":"Back to the Future 3","y":1990,"w":"Back to the Future Part III","g":["Sci-Fi","Western","Comedy"],"d":["Robert Zemeckis"],"wr":["Bob Gale"],"m":["Alan Silvestri"],"dp":["Dean Cundey"],"cast":["Michael J. Fox","Christopher Lloyd","Mary Steenburgen","Thomas F. Wilson","Lea Thompson"],"r":{"all":7.6,"mike":8.4,"sean":7.8,"aj":8.1}},
+{"t":"Ace Ventura: Pet Detective","cb":"Ace Ventura","y":1994,"w":"Ace Ventura: Pet Detective","g":["Comedy"],"d":["Tom Shadyac"],"wr":["Jack Bernstein","Tom Shadyac","Jim Carrey"],"m":["Ira Newborn"],"dp":["Julio Macat"],"cast":["Jim Carrey","Courteney Cox","Sean Young","Tone Loc","Dan Marino"],"r":{"all":7.59,"mike":7.35,"sean":6.7,"aj":7.2}},
+{"t":"O Brother, Where Art Thou?","cb":"O Brother Where Art Thou","y":2000,"w":"O Brother, Where Art Thou?","g":["Comedy","Adventure"],"d":["Joel Coen","Ethan Coen"],"wr":["Joel Coen","Ethan Coen"],"m":["T Bone Burnett"],"dp":["Roger Deakins"],"cast":["George Clooney","John Turturro","Tim Blake Nelson","John Goodman","Holly Hunter"],"r":{"all":7.58,"mike":8.2,"sean":6.1,"aj":7.7}},
+{"t":"The Jerk","cb":"The Jerk","y":1979,"w":"The Jerk","g":["Comedy"],"d":["Carl Reiner"],"wr":["Steve Martin","Carl Gottlieb","Michael Elias"],"m":["Jack Elliott"],"dp":["Victor J. Kemper"],"cast":["Steve Martin","Bernadette Peters","Catlin Adams","Mabel King","M. Emmet Walsh"],"r":{"all":7.57,"mike":6.95,"sean":8.0,"aj":7.4}},
+{"t":"Die Hard with a Vengeance","cb":"Die Hard with a Vengeance","y":1995,"w":"Die Hard with a Vengeance","g":["Action"],"d":["John McTiernan"],"wr":["Jonathan Hensleigh"],"m":["Michael Kamen"],"dp":["Peter Menzies Jr."],"cast":["Bruce Willis","Jeremy Irons","Samuel L. Jackson","Graham Greene","Colleen Camp"],"r":{"all":7.57,"mike":7.7,"sean":8.2,"aj":7.87}},
+{"t":"Heathers","cb":"Heathers","y":1989,"w":"Heathers","g":["Comedy","Crime"],"d":["Michael Lehmann"],"wr":["Daniel Waters"],"m":["David Newman"],"dp":["Francis Kenny"],"cast":["Winona Ryder","Christian Slater","Shannen Doherty","Lisanne Falk","Kim Walker"],"r":{"all":7.55,"mike":7.51,"sean":8.0,"aj":7.15}},
+{"t":"Tombstone","cb":"Tombstone","y":1993,"w":"Tombstone (film)","g":["Western","Action"],"d":["George P. Cosmatos"],"wr":["Kevin Jarre"],"m":["Bruce Broughton"],"dp":["William A. Fraker"],"cast":["Kurt Russell","Val Kilmer","Sam Elliott","Bill Paxton","Powers Boothe","Michael Biehn","Dana Delany"],"r":{"all":7.55,"mike":7.01,"sean":7.89,"aj":7.75}},
+{"t":"Best in Show","cb":"Best In Show","y":2000,"w":"Best in Show (film)","g":["Comedy"],"d":["Christopher Guest"],"wr":["Christopher Guest","Eugene Levy"],"m":["Jeffery CJ Vanston"],"dp":["Roberto Schaefer"],"cast":["Christopher Guest","Eugene Levy","Catherine O'Hara","Parker Posey","Michael McKean","Fred Willard","Jane Lynch","Jennifer Coolidge"],"r":{"all":7.55,"mike":7.55,"sean":7.75,"aj":7.65}},
+{"t":"After Hours","cb":"After Hours","y":1985,"w":"After Hours (film)","g":["Comedy","Thriller"],"d":["Martin Scorsese"],"wr":["Joseph Minion"],"m":["Howard Shore"],"dp":["Michael Ballhaus"],"cast":["Griffin Dunne","Rosanna Arquette","Teri Garr","John Heard","Catherine O'Hara","Linda Fiorentino"],"r":{"all":7.55,"mike":7.5,"sean":9.5,"aj":6.1}},
+{"t":"The Wizard","cb":"The Wizard","y":1989,"w":"The Wizard (1989 film)","g":["Family","Adventure"],"d":["Todd Holland"],"wr":["David Chisholm"],"m":["J. Peter Robinson"],"dp":["Robert Yeoman"],"cast":["Fred Savage","Luke Edwards","Jenny Lewis","Christian Slater","Beau Bridges"],"r":{"all":7.54,"mike":6.8,"sean":7.4,"aj":7.75}},
+{"t":"Super Troopers","cb":"Super Troopers","y":2001,"w":"Super Troopers","g":["Comedy"],"d":["Jay Chandrasekhar"],"wr":["Jay Chandrasekhar","Kevin Heffernan","Steve Lemme","Paul Soter","Erik Stolhanske"],"m":["38 Special"],"dp":["Joaquin Baca-Asay"],"cast":["Jay Chandrasekhar","Kevin Heffernan","Steve Lemme","Paul Soter","Erik Stolhanske","Brian Cox"],"r":{"all":7.54,"mike":6.6,"sean":6.5,"aj":8.15}},
+{"t":"The Player","cb":"The Player","y":1992,"w":"The Player (1992 film)","g":["Comedy","Crime","Drama"],"d":["Robert Altman"],"wr":["Michael Tolkin"],"m":["Thomas Newman"],"dp":["Jean Lepine"],"cast":["Tim Robbins","Greta Scacchi","Fred Ward","Whoopi Goldberg","Peter Gallagher","Vincent D'Onofrio"],"r":{"all":7.53,"mike":7.5,"sean":8.3,"aj":8.05}},
+{"t":"First Blood","cb":"First Blood","y":1982,"w":"First Blood","g":["Action"],"d":["Ted Kotcheff"],"wr":["Michael Kozoll","William Sackheim","Sylvester Stallone"],"m":["Jerry Goldsmith"],"dp":["Andrew Laszlo"],"cast":["Sylvester Stallone","Richard Crenna","Brian Dennehy","David Caruso"],"r":{"all":7.51,"mike":7.58,"sean":7.7,"aj":7.26}},
+{"t":"The Karate Kid","cb":"The Karate Kid","y":1984,"w":"The Karate Kid","g":["Sports","Drama","Family"],"d":["John G. Avildsen"],"wr":["Robert Mark Kamen"],"m":["Bill Conti"],"dp":["James Crabe"],"cast":["Ralph Macchio","Pat Morita","Elisabeth Shue","William Zabka","Martin Kove"],"r":{"all":7.5,"mike":7.0,"sean":10.0,"aj":7.0}},
+{"t":"The Mighty Ducks","cb":"The Mighty Ducks","y":1992,"w":"The Mighty Ducks","g":["Sports","Family","Comedy"],"d":["Stephen Herek"],"wr":["Steven Brill"],"m":["David Newman"],"dp":["Thomas Del Ruth"],"cast":["Emilio Estevez","Joss Ackland","Lane Smith","Joshua Jackson","Heidi Kling"],"r":{"all":7.5,"mike":7.0,"sean":7.1,"aj":8.4}},
+{"t":"Tommy Boy","cb":"Tommy Boy","y":1995,"w":"Tommy Boy","g":["Comedy"],"d":["Peter Segal"],"wr":["Bonnie Turner","Terry Turner"],"m":["David Newman"],"dp":["Victor J. Kemper"],"cast":["Chris Farley","David Spade","Brian Dennehy","Bo Derek","Rob Lowe","Dan Aykroyd"],"r":{"all":7.5,"mike":7.9,"sean":6.0,"aj":8.0}},
+{"t":"Young Guns","cb":"Young Guns","y":1988,"w":"Young Guns","g":["Western","Action"],"d":["Christopher Cain"],"wr":["John Fusco"],"m":["Anthony Marinelli","Brian Banks"],"dp":["Dean Semler"],"cast":["Emilio Estevez","Kiefer Sutherland","Lou Diamond Phillips","Charlie Sheen","Dermot Mulroney","Casey Siemaszko","Jack Palance","Terence Stamp"],"r":{"all":7.49,"mike":7.4,"sean":7.5,"aj":6.75}},
+{"t":"UHF","cb":"UHF","y":1989,"w":"UHF (film)","g":["Comedy"],"d":["Jay Levey"],"wr":["Weird Al Yankovic","Jay Levey"],"m":["John Du Prez"],"dp":["David Lewis"],"cast":["Weird Al Yankovic","Kevin McCarthy","Michael Richards","David Bowe","Victoria Jackson","Fran Drescher"],"r":{"all":7.49,"mike":8.16,"sean":7.3,"aj":7.25}},
+{"t":"Face/Off","cb":"Face/Off","y":1997,"w":"Face/Off","g":["Action","Sci-Fi"],"d":["John Woo"],"wr":["Mike Werb","Michael Colleary"],"m":["John Powell"],"dp":["Oliver Wood"],"cast":["John Travolta","Nicolas Cage","Joan Allen","Gina Gershon","Alessandro Nivola"],"r":{"all":7.48,"mike":7.75,"sean":8.2,"aj":6.5}},
+{"t":"Fast Times at Ridgemont High","cb":"Fast Times at Ridgemont High","y":1982,"w":"Fast Times at Ridgemont High","g":["Comedy"],"d":["Amy Heckerling"],"wr":["Cameron Crowe"],"m":[],"dp":["Matthew F. Leonetti"],"cast":["Sean Penn","Jennifer Jason Leigh","Judge Reinhold","Phoebe Cates","Robert Romanus","Brian Backer","Ray Walston"],"r":{"all":7.48,"mike":7.55,"sean":7.8,"aj":8.1}},
+{"t":"Independence Day","cb":"Independence Day","y":1996,"w":"Independence Day (1996 film)","g":["Sci-Fi","Action"],"d":["Roland Emmerich"],"wr":["Dean Devlin","Roland Emmerich"],"m":["David Arnold"],"dp":["Karl Walter Lindenlaub"],"cast":["Will Smith","Bill Pullman","Jeff Goldblum","Mary McDonnell","Judd Hirsch","Randy Quaid"],"r":{"all":7.48,"mike":7.1,"sean":7.8,"aj":6.7}},
+{"t":"The Bourne Identity","cb":"Bourne Identity","y":2002,"w":"The Bourne Identity (2002 film)","g":["Action","Thriller"],"d":["Doug Liman"],"wr":["Tony Gilroy","William Blake Herron"],"m":["John Powell"],"dp":["Oliver Wood"],"cast":["Matt Damon","Franka Potente","Chris Cooper","Clive Owen","Brian Cox","Julia Stiles"],"r":{"all":7.48,"mike":7.4,"sean":7.3,"aj":7.75}},
+{"t":"Big Trouble in Little China","cb":"Big Trouble in Little China","y":1986,"w":"Big Trouble in Little China","g":["Action","Fantasy","Comedy"],"d":["John Carpenter"],"wr":["Gary Goldman","David Z. Weinstein","W.D. Richter"],"m":["John Carpenter","Alan Howarth"],"dp":["Dean Cundey"],"cast":["Kurt Russell","Kim Cattrall","Dennis Dun","James Hong","Victor Wong"],"r":{"all":7.47,"mike":8.2,"sean":8.1,"aj":6.1}},
+{"t":"Addams Family Values","cb":"Addams Family Values","y":1993,"w":"Addams Family Values","g":["Comedy","Fantasy"],"d":["Barry Sonnenfeld"],"wr":["Paul Rudnick"],"m":["Marc Shaiman"],"dp":["Donald Peterman"],"cast":["Anjelica Huston","Raul Julia","Christopher Lloyd","Joan Cusack","Christina Ricci","Carol Kane"],"r":{"all":7.46,"mike":7.9,"sean":7.6,"aj":6.88}},
+{"t":"Armageddon","cb":"Armageddon","y":1998,"w":"Armageddon (1998 film)","g":["Sci-Fi","Action"],"d":["Michael Bay"],"wr":["Jonathan Hensleigh","J.J. Abrams"],"m":["Trevor Rabin"],"dp":["John Schwartzman"],"cast":["Bruce Willis","Billy Bob Thornton","Ben Affleck","Liv Tyler","Will Patton","Steve Buscemi","Owen Wilson"],"r":{"all":7.43,"mike":7.43,"sean":6.8,"aj":7.5}},
+{"t":"The Fifth Element","cb":"The Fifth Element","y":1997,"w":"The Fifth Element","g":["Sci-Fi","Action"],"d":["Luc Besson"],"wr":["Luc Besson","Robert Mark Kamen"],"m":["Eric Serra"],"dp":["Thierry Arbogast"],"cast":["Bruce Willis","Gary Oldman","Milla Jovovich","Ian Holm","Chris Tucker","Luke Perry"],"r":{"all":7.42,"mike":6.0,"sean":7.89,"aj":7.3}},
+{"t":"Major League","cb":"Major League","y":1989,"w":"Major League (film)","g":["Comedy","Sports"],"d":["David S. Ward"],"wr":["David S. Ward"],"m":["James Newton Howard"],"dp":["Reynaldo Villalobos"],"cast":["Tom Berenger","Charlie Sheen","Corbin Bernsen","Margaret Whitton","James Gammon","Rene Russo","Wesley Snipes","Dennis Haysbert"],"r":{"all":7.41,"mike":6.85,"sean":6.9,"aj":6.0}},
+{"t":"Gone in 60 Seconds","cb":"Gone in 60 Seconds","y":2000,"w":"Gone in 60 Seconds (2000 film)","g":["Action","Crime"],"d":["Dominic Sena"],"wr":["Scott Rosenberg"],"m":["Trevor Rabin"],"dp":["Paul Cameron"],"cast":["Nicolas Cage","Angelina Jolie","Giovanni Ribisi","Delroy Lindo","Will Patton","Robert Duvall","Vinnie Jones"],"r":{"all":7.37,"mike":5.5,"sean":7.4,"aj":7.9}},
+{"t":"The Texas Chain Saw Massacre","cb":"Texas Chainsaw Massacre","y":1974,"w":"The Texas Chain Saw Massacre","g":["Horror"],"d":["Tobe Hooper"],"wr":["Kim Henkel","Tobe Hooper"],"m":["Tobe Hooper","Wayne Bell"],"dp":["Daniel Pearl"],"cast":["Marilyn Burns","Paul A. Partain","Edwin Neal","Jim Siedow","Gunnar Hansen"],"r":{"all":7.37,"mike":6.48,"sean":10.0,"aj":7.5}},
+{"t":"Go","cb":"GO","y":1999,"w":"Go (1999 film)","g":["Comedy","Crime"],"d":["Doug Liman"],"wr":["John August"],"m":["BT"],"dp":["Doug Liman"],"cast":["Sarah Polley","Katie Holmes","Desmond Askew","Taye Diggs","Timothy Olyphant","Jay Mohr","Scott Wolf","William Fichtner"],"r":{"all":7.37,"mike":7.8,"sean":7.6,"aj":6.7}},
+{"t":"Clue","cb":"Clue","y":1985,"w":"Clue (film)","g":["Comedy"],"d":["Jonathan Lynn"],"wr":["Jonathan Lynn"],"m":["John Morris"],"dp":["Victor J. Kemper"],"cast":["Tim Curry","Madeline Kahn","Christopher Lloyd","Michael McKean","Martin Mull","Lesley Ann Warren","Eileen Brennan"],"r":{"all":7.36,"mike":8.1,"sean":8.0,"aj":7.05}},
+{"t":"The Santa Clause","cb":"The Santa Clause","y":1994,"w":"The Santa Clause","g":["Comedy","Family","Christmas"],"d":["John Pasquin"],"wr":["Leo Benvenuti","Steve Rudnick"],"m":["Michael Convertino"],"dp":["Walt Lloyd"],"cast":["Tim Allen","Judge Reinhold","Wendy Crewson","Eric Lloyd","David Krumholtz","Peter Boyle"],"r":{"all":7.33,"mike":7.0,"sean":8.0,"aj":7.0}},
+{"t":"Coming to America","cb":"Coming to America","y":1988,"w":"Coming to America","g":["Comedy","Romance"],"d":["John Landis"],"wr":["David Sheffield","Barry W. Blaustein"],"m":["Nile Rodgers"],"dp":["Woody Omens"],"cast":["Eddie Murphy","Arsenio Hall","James Earl Jones","John Amos","Shari Headley"],"r":{"all":7.31,"mike":6.95,"sean":7.7,"aj":7.1}},
+{"t":"Hot Tub Time Machine","cb":"Hot Tub Time Machine","y":2010,"w":"Hot Tub Time Machine","g":["Comedy","Sci-Fi"],"d":["Steve Pink"],"wr":["Josh Heald","Sean Anders","John Morris"],"m":["Christophe Beck"],"dp":["Jack N. Green"],"cast":["John Cusack","Rob Corddry","Craig Robinson","Clark Duke","Crispin Glover","Chevy Chase","Lizzy Caplan"],"r":{"all":7.3,"mike":8.0,"sean":7.7,"aj":7.3}},
+{"t":"Top Gun","cb":"Top Gun","y":1986,"w":"Top Gun","g":["Action"],"d":["Tony Scott"],"wr":["Jim Cash","Jack Epps Jr."],"m":["Harold Faltermeyer"],"dp":["Jeffrey L. Kimball"],"cast":["Tom Cruise","Kelly McGillis","Val Kilmer","Anthony Edwards","Tom Skerritt","Meg Ryan"],"r":{"all":7.28,"mike":6.25,"sean":7.8,"aj":7.8}},
+{"t":"Elf","cb":"Elf","y":2003,"w":"Elf (film)","g":["Comedy","Family","Christmas"],"d":["Jon Favreau"],"wr":["David Berenbaum"],"m":["John Debney"],"dp":["Greg Gardiner"],"cast":["Will Ferrell","James Caan","Zooey Deschanel","Mary Steenburgen","Bob Newhart","Ed Asner"],"r":{"all":7.27,"mike":7.6,"sean":5.8,"aj":7.9}},
+{"t":"Point Break","cb":"Point Break","y":1991,"w":"Point Break","g":["Action","Crime"],"d":["Kathryn Bigelow"],"wr":["W. Peter Iliff"],"m":["Mark Isham"],"dp":["Donald Peterman"],"cast":["Patrick Swayze","Keanu Reeves","Gary Busey","Lori Petty","John C. McGinley"],"r":{"all":7.27,"mike":6.6,"sean":8.0,"aj":7.2}},
+{"t":"Predator","cb":"Predator","y":1987,"w":"Predator (film)","g":["Sci-Fi","Action"],"d":["John McTiernan"],"wr":["Jim Thomas","John Thomas"],"m":["Alan Silvestri"],"dp":["Donald McAlpine"],"cast":["Arnold Schwarzenegger","Carl Weathers","Jesse Ventura","Bill Duke","Elpidia Carrillo","Shane Black"],"r":{"all":7.25,"mike":6.4,"sean":7.9,"aj":6.0}},
+{"t":"Starship Troopers","cb":"Starship Troopers","y":1997,"w":"Starship Troopers (film)","g":["Sci-Fi","Action"],"d":["Paul Verhoeven"],"wr":["Edward Neumeier"],"m":["Basil Poledouris"],"dp":["Jost Vacano"],"cast":["Casper Van Dien","Dina Meyer","Denise Richards","Jake Busey","Neil Patrick Harris","Clancy Brown","Michael Ironside"],"r":{"all":7.24,"mike":6.26,"sean":7.99,"aj":8.2}},
+{"t":"Groundhog Day","cb":"Groundhog Day","y":1993,"w":"Groundhog Day (film)","g":["Comedy","Fantasy","Romance"],"d":["Harold Ramis"],"wr":["Danny Rubin","Harold Ramis"],"m":["George Fenton"],"dp":["John Bailey"],"cast":["Bill Murray","Andie MacDowell","Chris Elliott","Stephen Tobolowsky","Brian Doyle-Murray"],"r":{"all":7.23,"mike":7.9,"sean":6.5,"aj":7.3}},
+{"t":"Friday","cb":"Friday","y":1995,"w":"Friday (1995 film)","g":["Comedy"],"d":["F. Gary Gray"],"wr":["Ice Cube","DJ Pooh"],"m":["Hidden Faces"],"dp":["Gerry Lively"],"cast":["Ice Cube","Chris Tucker","Nia Long","Tiny Lister","John Witherspoon","Bernie Mac"],"r":{"all":7.21,"mike":7.5,"sean":7.2,"aj":6.87}},
+{"t":"Hook","cb":"Hook","y":1991,"w":"Hook (film)","g":["Adventure","Family","Fantasy"],"d":["Steven Spielberg"],"wr":["Jim V. Hart","Malia Scotch Marmo"],"m":["John Williams"],"dp":["Dean Cundey"],"cast":["Robin Williams","Dustin Hoffman","Julia Roberts","Bob Hoskins","Maggie Smith"],"r":{"all":7.19,"mike":6.45,"sean":6.0,"aj":8.0}},
+{"t":"Scream","cb":"Scream","y":1996,"w":"Scream (1996 film)","g":["Horror"],"d":["Wes Craven"],"wr":["Kevin Williamson"],"m":["Marco Beltrami"],"dp":["Mark Irwin"],"cast":["Neve Campbell","Courteney Cox","David Arquette","Skeet Ulrich","Matthew Lillard","Drew Barrymore","Rose McGowan","Jamie Kennedy"],"r":{"all":7.18,"mike":7.4,"sean":8.5,"aj":5.3}},
+{"t":"Rad","cb":"Rad","y":1986,"w":"Rad (film)","g":["Sports","Drama"],"d":["Hal Needham"],"wr":["Sam Bernard","Geoffrey Edwards"],"m":["James Di Pasquale"],"dp":["Richard Leiterman"],"cast":["Bill Allen","Lori Loughlin","Talia Shire","Ray Walston","Jack Weston"],"r":{"all":7.17,"mike":6.9,"sean":5.0,"aj":8.6}},
+{"t":"Grandma's Boy","cb":"Grandma's Boy","y":2006,"w":"Grandma's Boy (2006 film)","g":["Comedy"],"d":["Nicholaus Goossen"],"wr":["Barry Wernick","Allen Covert","Nick Swardson"],"m":["Waddy Wachtel"],"dp":["Mark Irwin"],"cast":["Allen Covert","Linda Cardellini","Nick Swardson","Doris Roberts","Shirley Jones","Peter Dante","Joel David Moore","Kevin Nealon"],"r":{"all":7.16,"mike":7.9,"sean":7.6,"aj":7.9}},
+{"t":"American Beauty","cb":"American Beauty","y":1999,"w":"American Beauty (1999 film)","g":["Drama"],"d":["Sam Mendes"],"wr":["Alan Ball"],"m":["Thomas Newman"],"dp":["Conrad L. Hall"],"cast":["Kevin Spacey","Annette Bening","Thora Birch","Wes Bentley","Mena Suvari","Chris Cooper","Allison Janney"],"r":{"all":7.15,"mike":7.6,"sean":6.1,"aj":7.65}},
+{"t":"Spaceballs","cb":"Spaceballs","y":1987,"w":"Spaceballs","g":["Comedy","Sci-Fi"],"d":["Mel Brooks"],"wr":["Mel Brooks","Thomas Meehan","Ronny Graham"],"m":["John Morris"],"dp":["Nick McLean"],"cast":["Mel Brooks","John Candy","Rick Moranis","Bill Pullman","Daphne Zuniga"],"r":{"all":7.14,"mike":7.45,"sean":7.4,"aj":8.1}},
+{"t":"Con Air","cb":"Con Air","y":1997,"w":"Con Air","g":["Action"],"d":["Simon West"],"wr":["Scott Rosenberg"],"m":["Mark Mancina","Trevor Rabin"],"dp":["David Tattersall"],"cast":["Nicolas Cage","John Cusack","John Malkovich","Steve Buscemi","Ving Rhames","Colm Meaney","Danny Trejo"],"r":{"all":7.13,"mike":6.4,"sean":8.2,"aj":6.8}},
+{"t":"National Treasure","cb":"National Treasure","y":2004,"w":"National Treasure (film)","g":["Adventure","Action"],"d":["Jon Turteltaub"],"wr":["Jim Kouf","Cormac Wibberley","Marianne Wibberley"],"m":["Trevor Rabin"],"dp":["Caleb Deschanel"],"cast":["Nicolas Cage","Diane Kruger","Justin Bartha","Sean Bean","Jon Voight","Harvey Keitel","Christopher Plummer"],"r":{"all":7.13,"mike":5.5,"sean":7.3,"aj":7.76}},
+{"t":"Tremors","cb":"Tremors","y":1990,"w":"Tremors (1990 film)","g":["Horror","Comedy","Sci-Fi"],"d":["Ron Underwood"],"wr":["S.S. Wilson","Brent Maddock"],"m":["Ernest Troost"],"dp":["Alexander Gruszynski"],"cast":["Kevin Bacon","Fred Ward","Finn Carter","Michael Gross","Reba McEntire"],"r":{"all":7.12,"mike":6.3,"sean":7.8,"aj":5.4}},
+{"t":"Austin Powers: International Man of Mystery","cb":"Austin Powers","y":1997,"w":"Austin Powers: International Man of Mystery","g":["Comedy"],"d":["Jay Roach"],"wr":["Mike Myers"],"m":["George S. Clinton"],"dp":["Peter Deming"],"cast":["Mike Myers","Elizabeth Hurley","Michael York","Mimi Rogers","Robert Wagner","Seth Green","Mindy Sterling"],"r":{"all":7.11,"mike":6.95,"sean":6.0,"aj":7.5}},
+{"t":"The Fast and the Furious","cb":"Fast and the Furious","y":2001,"w":"The Fast and the Furious (2001 film)","g":["Action","Crime"],"d":["Rob Cohen"],"wr":["Gary Scott Thompson","Erik Bergquist","David Ayer"],"m":["BT"],"dp":["Ericson Core"],"cast":["Paul Walker","Vin Diesel","Michelle Rodriguez","Jordana Brewster","Rick Yune","Chad Lindberg","Ted Levine"],"r":{"all":7.1,"mike":6.5,"sean":7.7,"aj":7.1}},
+{"t":"Wayne's World","cb":"Wayne's World","y":1992,"w":"Wayne's World (film)","g":["Comedy"],"d":["Penelope Spheeris"],"wr":["Mike Myers","Bonnie Turner","Terry Turner"],"m":["J. Peter Robinson"],"dp":["Theo van de Sande"],"cast":["Mike Myers","Dana Carvey","Rob Lowe","Tia Carrere","Lara Flynn Boyle","Brian Doyle-Murray"],"r":{"all":7.1,"mike":7.8,"sean":7.5,"aj":7.2}},
+{"t":"Duel","cb":"Duel","y":1971,"w":"Duel (1971 film)","g":["Thriller"],"d":["Steven Spielberg"],"wr":["Richard Matheson"],"m":["Billy Goldenberg"],"dp":["Jack A. Marta"],"cast":["Dennis Weaver"],"r":{"all":7.09,"mike":7.9,"sean":8.15,"aj":6.3}},
+{"t":"The Mummy","cb":"The Mummy","y":1999,"w":"The Mummy (1999 film)","g":["Adventure","Action","Fantasy"],"d":["Stephen Sommers"],"wr":["Stephen Sommers"],"m":["Jerry Goldsmith"],"dp":["Adrian Biddle"],"cast":["Brendan Fraser","Rachel Weisz","John Hannah","Arnold Vosloo","Kevin J. O'Connor","Oded Fehr"],"r":{"all":7.08,"mike":6.2,"sean":7.99,"aj":7.1}},
+{"t":"Rounders","cb":"Rounders","y":1998,"w":"Rounders (film)","g":["Drama","Crime"],"d":["John Dahl"],"wr":["David Levien","Brian Koppelman"],"m":["Christopher Young"],"dp":["Jean-Yves Escoffier"],"cast":["Matt Damon","Edward Norton","John Turturro","Gretchen Mol","Famke Janssen","John Malkovich","Martin Landau"],"r":{"all":7.08,"mike":7.1,"sean":7.1,"aj":7.6}},
+{"t":"Ghostbusters II","cb":"Ghostbusters 2","y":1989,"w":"Ghostbusters II","g":["Comedy","Fantasy"],"d":["Ivan Reitman"],"wr":["Harold Ramis","Dan Aykroyd"],"m":["Randy Edelman"],"dp":["Michael Chapman"],"cast":["Bill Murray","Dan Aykroyd","Sigourney Weaver","Harold Ramis","Rick Moranis","Ernie Hudson","Annie Potts","Peter MacNicol"],"r":{"all":7.08,"mike":6.9,"sean":6.8,"aj":7.9}},
+{"t":"Bloodsport","cb":"Bloodsport","y":1988,"w":"Bloodsport (film)","g":["Action","Sports"],"d":["Newt Arnold"],"wr":["Sheldon Lettich","Christopher Cosby","Mel Friedman"],"m":["Paul Hertzog"],"dp":["David Worth"],"cast":["Jean-Claude Van Damme","Donald Gibb","Leah Ayres","Bolo Yeung","Forest Whitaker"],"r":{"all":7.07,"mike":6.0,"sean":8.5,"aj":6.7}},
+{"t":"10 Things I Hate About You","cb":"10 Things I Hate About You","y":1999,"w":"10 Things I Hate About You","g":["Comedy","Romance"],"d":["Gil Junger"],"wr":["Karen McCullah","Kirsten Smith"],"m":["Richard Gibbs"],"dp":["Mark Irwin"],"cast":["Heath Ledger","Julia Stiles","Joseph Gordon-Levitt","Larisa Oleynik","David Krumholtz","Andrew Keegan","Larry Miller","Allison Janney"],"r":{"all":7.06,"mike":7.2,"sean":7.1,"aj":7.05}},
+{"t":"Honey, I Shrunk the Kids","cb":"Honey I Shrunk the Kids","y":1989,"w":"Honey, I Shrunk the Kids","g":["Family","Sci-Fi","Comedy"],"d":["Joe Johnston"],"wr":["Ed Naha","Tom Schulman"],"m":["James Horner"],"dp":["Hiro Narita"],"cast":["Rick Moranis","Matt Frewer","Marcia Strassman","Kristine Sutherland","Thomas Wilson Brown"],"r":{"all":7.03,"mike":7.5,"sean":6.2,"aj":5.75}},
+{"t":"The Great Outdoors","cb":"The Great Outdoors","y":1988,"w":"The Great Outdoors (film)","g":["Comedy"],"d":["Howard Deutch"],"wr":["John Hughes"],"m":["Thomas Newman"],"dp":["Ric Waite"],"cast":["Dan Aykroyd","John Candy","Stephanie Faracy","Annette Bening"],"r":{"all":7.03,"mike":7.1,"sean":7.3,"aj":6.7}},
+{"t":"Hocus Pocus","cb":"Hocus Pocus","y":1993,"w":"Hocus Pocus (1993 film)","g":["Family","Fantasy","Comedy"],"d":["Kenny Ortega"],"wr":["Mick Garris","Neil Cuthbert"],"m":["John Debney"],"dp":["Hiro Narita"],"cast":["Bette Midler","Sarah Jessica Parker","Kathy Najimy","Omri Katz","Thora Birch","Vinessa Shaw"],"r":{"all":7.0,"mike":7.0,"sean":8.0,"aj":7.0}},
+{"t":"Batman Returns","cb":"Batman Returns","y":1992,"w":"Batman Returns","g":["Action","Fantasy"],"d":["Tim Burton"],"wr":["Daniel Waters"],"m":["Danny Elfman"],"dp":["Stefan Czapsky"],"cast":["Michael Keaton","Danny DeVito","Michelle Pfeiffer","Christopher Walken","Michael Gough"],"r":{"all":7.0,"mike":6.7,"sean":6.99,"aj":6.9}},
+{"t":"Three Amigos","cb":"Three Amigos","y":1986,"w":"Three Amigos","g":["Comedy","Western"],"d":["John Landis"],"wr":["Steve Martin","Lorne Michaels","Randy Newman"],"m":["Elmer Bernstein"],"dp":["Ronald W. Browne"],"cast":["Steve Martin","Chevy Chase","Martin Short","Alfonso Arau","Patrice Martinez"],"r":{"all":6.99,"mike":6.25,"sean":7.5,"aj":7.85}},
+{"t":"The 'Burbs","cb":"The Burbs","y":1989,"w":"The 'Burbs","g":["Comedy","Thriller"],"d":["Joe Dante"],"wr":["Dana Olsen"],"m":["Jerry Goldsmith"],"dp":["Robert M. Stevens"],"cast":["Tom Hanks","Bruce Dern","Carrie Fisher","Rick Ducommun","Corey Feldman","Henry Gibson"],"r":{"all":6.99,"mike":6.66,"sean":9.0,"aj":5.3}},
+{"t":"The Crow","cb":"The Crow","y":1994,"w":"The Crow (1994 film)","g":["Action","Fantasy"],"d":["Alex Proyas"],"wr":["David J. Schow","John Shirley"],"m":["Graeme Revell"],"dp":["Dariusz Wolski"],"cast":["Brandon Lee","Ernie Hudson","Michael Wincott","Rochelle Davis","Bai Ling","David Patrick Kelly"],"r":{"all":6.98,"mike":6.9,"sean":8.0,"aj":7.9}},
+{"t":"Scrooged","cb":"Scrooged","y":1988,"w":"Scrooged","g":["Comedy","Fantasy","Christmas"],"d":["Richard Donner"],"wr":["Mitch Glazer","Michael O'Donoghue"],"m":["Danny Elfman"],"dp":["Michael Chapman"],"cast":["Bill Murray","Karen Allen","John Forsythe","Bobcat Goldthwait","Carol Kane","Robert Mitchum","Alfre Woodard"],"r":{"all":6.95,"mike":5.9,"sean":6.8,"aj":7.85}},
+{"t":"Son in Law","cb":"Son In Law","y":1993,"w":"Son in Law","g":["Comedy"],"d":["Steve Rash"],"wr":["Fax Bahr","Adam Small","Shawn Schepps"],"m":["Richard Gibbs"],"dp":["Peter Deming"],"cast":["Pauly Shore","Carla Gugino","Lane Smith","Cindy Pickett","Tiffani Thiessen"],"r":{"all":6.95,"mike":6.0,"sean":7.5,"aj":7.34}},
+{"t":"X-Men","cb":"X-Men","y":2000,"w":"X-Men (film)","g":["Action","Sci-Fi"],"d":["Bryan Singer"],"wr":["David Hayter"],"m":["Michael Kamen"],"dp":["Newton Thomas Sigel"],"cast":["Patrick Stewart","Hugh Jackman","Ian McKellen","Halle Berry","Famke Janssen","James Marsden","Anna Paquin"],"r":{"all":6.95,"mike":7.4,"sean":6.3,"aj":7.1}},
+{"t":"Parenthood","cb":"Parenthood","y":1989,"w":"Parenthood (film)","g":["Comedy","Drama"],"d":["Ron Howard"],"wr":["Lowell Ganz","Babaloo Mandel"],"m":["Randy Newman"],"dp":["Donald McAlpine"],"cast":["Steve Martin","Mary Steenburgen","Dianne Wiest","Jason Robards","Rick Moranis","Keanu Reeves","Tom Hulce","Martha Plimpton","Joaquin Phoenix"],"r":{"all":6.94,"mike":7.41,"sean":5.9,"aj":7.5}},
+{"t":"The Ghost and the Darkness","cb":"Ghost and the Darkness","y":1996,"w":"The Ghost and the Darkness","g":["Adventure","Thriller"],"d":["Stephen Hopkins"],"wr":["William Goldman"],"m":["Jerry Goldsmith"],"dp":["Vilmos Zsigmond"],"cast":["Val Kilmer","Michael Douglas","Tom Wilkinson","John Kani","Bernard Hill"],"r":{"all":6.91,"mike":7.0,"sean":6.6,"aj":6.95}},
+{"t":"Necessary Roughness","cb":"Necessary Roughness","y":1991,"w":"Necessary Roughness (film)","g":["Comedy","Sports"],"d":["Stan Dragoti"],"wr":["Rick Natkin","David Fuller"],"m":["Bill Conti"],"dp":["Peter Stein"],"cast":["Scott Bakula","Hector Elizondo","Robert Loggia","Harley Jane Kozak","Sinbad","Kathy Ireland","Jason Bateman"],"r":{"all":6.9,"mike":5.6,"sean":6.9,"aj":6.2}},
+{"t":"The Cable Guy","cb":"Cable Guy","y":1996,"w":"The Cable Guy","g":["Comedy","Thriller"],"d":["Ben Stiller"],"wr":["Lou Holtz Jr."],"m":["John Ottman"],"dp":["Robert Brinkmann"],"cast":["Jim Carrey","Matthew Broderick","Leslie Mann","Jack Black","George Segal","Diane Baker","Owen Wilson"],"r":{"all":6.9,"mike":7.2,"sean":8.0,"aj":6.5}},
+{"t":"Demolition Man","cb":"Demolition Man","y":1993,"w":"Demolition Man (film)","g":["Sci-Fi","Action"],"d":["Marco Brambilla"],"wr":["Daniel Waters","Robert Reneau","Peter M. Lenkov"],"m":["Elliot Goldenthal"],"dp":["Alex Thomson"],"cast":["Sylvester Stallone","Wesley Snipes","Sandra Bullock","Nigel Hawthorne","Benjamin Bratt","Denis Leary"],"r":{"all":6.88,"mike":7.0,"sean":6.88,"aj":6.3}},
+{"t":"Heavyweights","cb":"Heavyweights","y":1995,"w":"Heavyweights","g":["Comedy","Family"],"d":["Steven Brill"],"wr":["Judd Apatow","Steven Brill"],"m":["J.A.C. Redford"],"dp":["Victor Hammer"],"cast":["Tom McGowan","Aaron Schwartz","Shaun Weiss","Kenan Thompson","Ben Stiller","Paul Feig"],"r":{"all":6.87,"mike":4.5,"sean":6.8,"aj":7.0}},
+{"t":"Cool Runnings","cb":"Cool Runnings","y":1993,"w":"Cool Runnings","g":["Comedy","Sports","Family"],"d":["Jon Turteltaub"],"wr":["Lynn Siefert","Tommy Swerdlow","Michael Goldberg"],"m":["Hans Zimmer"],"dp":["Phedon Papamichael"],"cast":["Leon","Doug E. Doug","Rawle D. Lewis","Malik Yoba","John Candy"],"r":{"all":6.87,"mike":7.3,"sean":6.5,"aj":6.8}},
+{"t":"Blade","cb":"Blade","y":1998,"w":"Blade (1998 film)","g":["Action","Horror"],"d":["Stephen Norrington"],"wr":["David S. Goyer"],"m":["Mark Isham"],"dp":["Theo van de Sande"],"cast":["Wesley Snipes","Stephen Dorff","Kris Kristofferson","N'Bushe Wright","Donal Logue"],"r":{"all":6.86,"mike":7.4,"sean":8.0,"aj":5.65}},
+{"t":"Wayne's World 2","cb":"Wayne's World 2","y":1993,"w":"Wayne's World 2","g":["Comedy"],"d":["Stephen Surjik"],"wr":["Mike Myers","Bonnie Turner","Terry Turner"],"m":["Carter Burwell"],"dp":["Francis Kenny"],"cast":["Mike Myers","Dana Carvey","Tia Carrere","Christopher Walken","Kim Basinger","Chris Farley"],"r":{"all":6.8,"mike":7.1,"sean":7.9,"aj":7.2}},
+{"t":"Flight of the Navigator","cb":"Flight of the Navigator","y":1986,"w":"Flight of the Navigator","g":["Sci-Fi","Family","Adventure"],"d":["Randal Kleiser"],"wr":["Michael Burton","Matt MacManus"],"m":["Alan Silvestri"],"dp":["James Glennon"],"cast":["Joey Cramer","Veronica Cartwright","Cliff De Young","Sarah Jessica Parker","Howard Hesseman","Paul Reubens"],"r":{"all":6.78,"mike":6.99,"sean":6.4,"aj":6.95}},
+{"t":"101 Dalmatians","cb":"101 Dalmations","y":1996,"w":"101 Dalmatians (1996 film)","g":["Family","Comedy"],"d":["Stephen Herek"],"wr":["John Hughes"],"m":["Michael Kamen"],"dp":["Adrian Biddle"],"cast":["Glenn Close","Jeff Daniels","Joely Richardson","Joan Plowright","Hugh Laurie","Mark Williams"],"r":{"all":6.77,"mike":5.5,"sean":7.3,"aj":6.4}},
+{"t":"Clueless","cb":"Clueless","y":1995,"w":"Clueless","g":["Comedy","Romance"],"d":["Amy Heckerling"],"wr":["Amy Heckerling"],"m":["David Kitay"],"dp":["Bill Pope"],"cast":["Alicia Silverstone","Stacey Dash","Brittany Murphy","Paul Rudd","Dan Hedaya","Donald Faison","Breckin Meyer","Wallace Shawn"],"r":{"all":6.77,"mike":7.3,"sean":7.3,"aj":5.0}},
+{"t":"A Nightmare on Elm Street","cb":"Nightmare on Elm Street","y":1984,"w":"A Nightmare on Elm Street","g":["Horror"],"d":["Wes Craven"],"wr":["Wes Craven"],"m":["Charles Bernstein"],"dp":["Jacques Haitkin"],"cast":["Heather Langenkamp","Robert Englund","John Saxon","Ronee Blakley","Johnny Depp","Amanda Wyss"],"r":{"all":6.76,"mike":5.7,"sean":6.767,"aj":3.75}},
+{"t":"Gremlins","cb":"Gremlins","y":1984,"w":"Gremlins","g":["Horror","Comedy","Christmas"],"d":["Joe Dante"],"wr":["Chris Columbus"],"m":["Jerry Goldsmith"],"dp":["John Hora"],"cast":["Zach Galligan","Phoebe Cates","Hoyt Axton","Polly Holliday","Frances Lee McCain","Corey Feldman","Judge Reinhold"],"r":{"all":6.75,"mike":7.44,"sean":7.7,"aj":5.85}},
+{"t":"Weird Science","cb":"Weird Science","y":1985,"w":"Weird Science (film)","g":["Comedy","Sci-Fi"],"d":["John Hughes"],"wr":["John Hughes"],"m":["Ira Newborn"],"dp":["Matthew F. Leonetti"],"cast":["Anthony Michael Hall","Ilan Mitchell-Smith","Kelly LeBrock","Bill Paxton","Robert Downey Jr."],"r":{"all":6.74,"mike":6.8,"sean":6.9,"aj":6.0}},
+{"t":"Just Friends","cb":"Just Friends","y":2005,"w":"Just Friends","g":["Comedy","Romance","Christmas"],"d":["Roger Kumble"],"wr":["Adam Davis"],"m":["Jeff Cardoni"],"dp":["Anthony B. Richmond"],"cast":["Ryan Reynolds","Amy Smart","Anna Faris","Chris Klein","Christopher Marquette","Julie Hagerty"],"r":{"all":6.7,"mike":6.49,"sean":6.5,"aj":9.1}},
+{"t":"Grumpy Old Men","cb":"Grumpy Old Men","y":1993,"w":"Grumpy Old Men","g":["Comedy","Romance"],"d":["Donald Petrie"],"wr":["Mark Steven Johnson"],"m":["Alan Silvestri"],"dp":["John E. Jensen"],"cast":["Jack Lemmon","Walter Matthau","Ann-Margret","Burgess Meredith","Daryl Hannah","Kevin Pollak","Ossie Davis"],"r":{"all":6.69,"mike":6.81,"sean":5.95,"aj":7.3}},
+{"t":"Willy Wonka & the Chocolate Factory","cb":"Willy Wonka & the Chocolate Factory","y":1971,"w":"Willy Wonka & the Chocolate Factory","g":["Family","Fantasy","Musical"],"d":["Mel Stuart"],"wr":["Roald Dahl"],"m":["Leslie Bricusse","Anthony Newley","Walter Scharf"],"dp":["Arthur Ibbetson"],"cast":["Gene Wilder","Jack Albertson","Peter Ostrum","Roy Kinnear","Julie Dawn Cole"],"r":{"all":6.68,"mike":5.2,"sean":6.8,"aj":8.7}},
+{"t":"Airborne","cb":"Airborne","y":1993,"w":"Airborne (1993 film)","g":["Comedy","Sports"],"d":["Rob Bowman"],"wr":["Bill Apablasa"],"m":["Stewart Copeland"],"dp":["Daryn Okada"],"cast":["Shane McDermott","Seth Green","Brittney Powell","Chris Conrad","Jack Black","Edie McClurg"],"r":{"all":6.62,"mike":7.51,"sean":5.4,"aj":7.1}},
+{"t":"Air Force One","cb":"Air Force One","y":1997,"w":"Air Force One (film)","g":["Action","Thriller"],"d":["Wolfgang Petersen"],"wr":["Andrew W. Marlowe"],"m":["Jerry Goldsmith"],"dp":["Michael Ballhaus"],"cast":["Harrison Ford","Gary Oldman","Glenn Close","Wendy Crewson","William H. Macy","Dean Stockwell"],"r":{"all":6.61,"mike":5.8,"sean":6.8,"aj":6.85}},
+{"t":"Speed","cb":"Speed","y":1994,"w":"Speed (1994 film)","g":["Action","Thriller"],"d":["Jan de Bont"],"wr":["Graham Yost"],"m":["Mark Mancina"],"dp":["Andrzej Bartkowiak"],"cast":["Keanu Reeves","Dennis Hopper","Sandra Bullock","Joe Morton","Jeff Daniels","Alan Ruck"],"r":{"all":6.6,"mike":5.0,"sean":8.9,"aj":5.9}},
+{"t":"Mystery, Alaska","cb":"Mystery Alaska","y":1999,"w":"Mystery, Alaska","g":["Comedy","Sports","Drama"],"d":["Jay Roach"],"wr":["David E. Kelley","Sean O'Byrne"],"m":["Carter Burwell"],"dp":["Peter Deming"],"cast":["Russell Crowe","Hank Azaria","Mary McCormack","Burt Reynolds","Colm Meaney","Lolita Davidovich","Ron Eldard"],"r":{"all":6.59,"mike":7.3,"sean":5.8,"aj":6.2}},
+{"t":"The Evil Dead","cb":"The Evil Dead","y":1981,"w":"The Evil Dead","g":["Horror"],"d":["Sam Raimi"],"wr":["Sam Raimi"],"m":["Joseph LoDuca"],"dp":["Tim Philo"],"cast":["Bruce Campbell","Ellen Sandweiss","Hal Delrich","Betsy Baker","Theresa Tilly"],"r":{"all":6.58,"mike":6.45,"sean":7.8,"aj":5.5}},
+{"t":"Red Dawn","cb":"Red Dawn","y":1984,"w":"Red Dawn","g":["Action","War"],"d":["John Milius"],"wr":["Kevin Reynolds","John Milius"],"m":["Basil Poledouris"],"dp":["Ric Waite"],"cast":["Patrick Swayze","C. Thomas Howell","Lea Thompson","Charlie Sheen","Jennifer Grey","Harry Dean Stanton","Powers Boothe"],"r":{"all":6.55,"mike":6.1,"sean":5.9,"aj":6.9}},
+{"t":"EuroTrip","cb":"Eurotrip","y":2004,"w":"EuroTrip","g":["Comedy"],"d":["Jeff Schaffer"],"wr":["Alec Berg","David Mandel","Jeff Schaffer"],"m":["James L. Venable"],"dp":["David Eggby"],"cast":["Scott Mechlowicz","Jacob Pitts","Michelle Trachtenberg","Travis Wester","Kristin Kreuk","Vinnie Jones","Matt Damon"],"r":{"all":6.55,"mike":6.29,"sean":6.4,"aj":6.1}},
+{"t":"Mallrats","cb":"Mallrats","y":1995,"w":"Mallrats","g":["Comedy"],"d":["Kevin Smith"],"wr":["Kevin Smith"],"m":["Ira Newborn"],"dp":["David Klein"],"cast":["Jason Lee","Jeremy London","Shannen Doherty","Claire Forlani","Ben Affleck","Joey Lauren Adams","Jason Mewes","Kevin Smith"],"r":{"all":6.53,"mike":7.0,"sean":6.5,"aj":4.9}},
+{"t":"BASEketball","cb":"Baseketball","y":1998,"w":"BASEketball","g":["Comedy","Sports"],"d":["David Zucker"],"wr":["David Zucker","Robert LoCash","Lewis Friedman","Jeff Wright"],"m":["Ira Newborn"],"dp":["Steve Mason"],"cast":["Trey Parker","Matt Stone","Yasmine Bleeth","Jenny McCarthy","Robert Vaughn","Ernest Borgnine","Dian Bachar"],"r":{"all":6.52,"mike":4.9,"sean":5.3,"aj":6.9}},
+{"t":"Crocodile Dundee","cb":"Crocodile Dundee","y":1986,"w":"Crocodile Dundee","g":["Comedy","Adventure"],"d":["Peter Faiman"],"wr":["Paul Hogan","Ken Shadie","John Cornell"],"m":["Peter Best"],"dp":["Russell Boyd"],"cast":["Paul Hogan","Linda Kozlowski","John Meillon","David Gulpilil","Mark Blum"],"r":{"all":6.51,"mike":6.8,"sean":5.2,"aj":6.77}},
+{"t":"Airheads","cb":"Airheads","y":1994,"w":"Airheads","g":["Comedy"],"d":["Michael Lehmann"],"wr":["Rich Wilkes"],"m":["Carter Burwell"],"dp":["John Schwartzman"],"cast":["Brendan Fraser","Steve Buscemi","Adam Sandler","Chris Farley","Michael McKean","Joe Mantegna","Judd Nelson","Ernie Hudson"],"r":{"all":6.48,"mike":6.5,"sean":7.1,"aj":7.4}},
+{"t":"Days of Thunder","cb":"Days of Thunder","y":1990,"w":"Days of Thunder","g":["Action","Sports"],"d":["Tony Scott"],"wr":["Robert Towne"],"m":["Hans Zimmer"],"dp":["Ward Russell"],"cast":["Tom Cruise","Robert Duvall","Nicole Kidman","Randy Quaid","Cary Elwes","Michael Rooker","John C. Reilly"],"r":{"all":6.47,"mike":6.1,"sean":6.89,"aj":7.15}},
+{"t":"2 Fast 2 Furious","cb":"2 Fast 2 Furious","y":2003,"w":"2 Fast 2 Furious","g":["Action","Crime"],"d":["John Singleton"],"wr":["Michael Brandt","Derek Haas"],"m":["David Arnold"],"dp":["Matthew F. Leonetti"],"cast":["Paul Walker","Tyrese Gibson","Eva Mendes","Cole Hauser","Ludacris","James Remar"],"r":{"all":6.47,"mike":6.0,"sean":7.1,"aj":6.8}},
+{"t":"The Punisher","cb":"The Punisher","y":2004,"w":"The Punisher (2004 film)","g":["Action","Crime"],"d":["Jonathan Hensleigh"],"wr":["Jonathan Hensleigh","Michael France"],"m":["Carlo Siliotto"],"dp":["Conrad W. Hall"],"cast":["Thomas Jane","John Travolta","Will Patton","Rebecca Romijn","Ben Foster","Roy Scheider"],"r":{"all":6.45,"mike":5.7,"sean":6.0,"aj":7.8}},
+{"t":"Out Cold","cb":"Out Cold","y":2001,"w":"Out Cold (2001 film)","g":["Comedy","Sports"],"d":["Brendan Malloy","Emmett Malloy"],"wr":["Jon Zack"],"m":["Michael Andrews"],"dp":["Richard Crudo"],"cast":["Jason London","Lee Majors","Willie Garson","Zach Galifianakis","David Koechner","A.J. Cook","Derek Hamilton"],"r":{"all":6.43,"mike":7.6,"sean":5.6,"aj":6.2}},
+{"t":"Road House","cb":"Roadhouse","y":1989,"w":"Road House (1989 film)","g":["Action"],"d":["Rowdy Herrington"],"wr":["David Lee Henry","Hilary Henkin"],"m":["Michael Kamen"],"dp":["Dean Cundey"],"cast":["Patrick Swayze","Kelly Lynch","Sam Elliott","Ben Gazzara","Kevin Tighe"],"r":{"all":6.38,"mike":5.9,"sean":6.3,"aj":6.1}},
+{"t":"National Lampoon's Christmas Vacation","cb":"Christmas Vacation","y":1989,"w":"National Lampoon's Christmas Vacation","g":["Comedy","Christmas"],"d":["Jeremiah S. Chechik"],"wr":["John Hughes"],"m":["Angelo Badalamenti"],"dp":["Thomas E. Ackerman"],"cast":["Chevy Chase","Beverly D'Angelo","Randy Quaid","Juliette Lewis","Johnny Galecki"],"r":{"all":6.37,"mike":7.5,"sean":4.6,"aj":7.5}},
+{"t":"Final Destination","cb":"Final Destination","y":2000,"w":"Final Destination (film)","g":["Horror"],"d":["James Wong"],"wr":["Glen Morgan","James Wong","Jeffrey Reddick"],"m":["Shirley Walker"],"dp":["Robert McLachlan"],"cast":["Devon Sawa","Ali Larter","Kerr Smith","Seann William Scott","Tony Todd"],"r":{"all":6.37,"mike":6.6,"sean":7.4,"aj":5.5}},
+{"t":"The Running Man","cb":"Running Man","y":1987,"w":"The Running Man (1987 film)","g":["Sci-Fi","Action"],"d":["Paul Michael Glaser"],"wr":["Steven E. de Souza"],"m":["Harold Faltermeyer"],"dp":["Thomas Del Ruth"],"cast":["Arnold Schwarzenegger","Maria Conchita Alonso","Richard Dawson","Yaphet Kotto","Jesse Ventura","Jim Brown"],"r":{"all":6.37,"mike":6.0,"sean":6.0,"aj":5.5}},
+{"t":"Death Becomes Her","cb":"Death Becomes Her","y":1992,"w":"Death Becomes Her","g":["Comedy","Fantasy"],"d":["Robert Zemeckis"],"wr":["Martin Donovan","David Koepp"],"m":["Alan Silvestri"],"dp":["Dean Cundey"],"cast":["Meryl Streep","Bruce Willis","Goldie Hawn","Isabella Rossellini"],"r":{"all":6.37,"mike":6.4,"sean":7.89,"aj":5.6}},
+{"t":"The Legend of Billie Jean","cb":"Legend of Billie Jean","y":1985,"w":"The Legend of Billie Jean","g":["Drama","Action"],"d":["Matthew Robbins"],"wr":["Mark Rosenthal","Lawrence Konner"],"m":["Craig Safan"],"dp":["Jeffrey L. Kimball"],"cast":["Helen Slater","Christian Slater","Keith Gordon","Peter Coyote","Yeardley Smith"],"r":{"all":6.36,"mike":5.0,"sean":7.5,"aj":6.6}},
+{"t":"Empire Records","cb":"Empire Records","y":1995,"w":"Empire Records","g":["Comedy","Drama"],"d":["Allan Moyle"],"wr":["Carol Heikkinen"],"m":[],"dp":["Walt Lloyd"],"cast":["Anthony LaPaglia","Liv Tyler","Renee Zellweger","Rory Cochrane","Robin Tunney","Ethan Embry","Maxwell Caulfield","Debi Mazar"],"r":{"all":6.3,"mike":6.14,"sean":4.9,"aj":6.97}},
+{"t":"Rock Star","cb":"Rock Star","y":2001,"w":"Rock Star (2001 film)","g":["Drama","Comedy"],"d":["Stephen Herek"],"wr":["John Stockwell"],"m":["Trevor Rabin"],"dp":["Ueli Steiger"],"cast":["Mark Wahlberg","Jennifer Aniston","Dominic West","Timothy Spall","Timothy Olyphant"],"r":{"all":6.29,"mike":4.9,"sean":6.2,"aj":6.8}},
+{"t":"Weekend at Bernie's","cb":"Weekend at Bernies","y":1989,"w":"Weekend at Bernie's","g":["Comedy"],"d":["Ted Kotcheff"],"wr":["Robert Klane"],"m":["Andy Summers"],"dp":["Francois Protat"],"cast":["Andrew McCarthy","Jonathan Silverman","Catherine Mary Stewart","Terry Kiser"],"r":{"all":6.23,"mike":6.8,"sean":6.85,"aj":5.05}},
+{"t":"Rookie of the Year","cb":"Rookie of the Year","y":1993,"w":"Rookie of the Year (film)","g":["Family","Sports","Comedy"],"d":["Daniel Stern"],"wr":["Sam Harper"],"m":["Bill Conti"],"dp":["Jack N. Green"],"cast":["Thomas Ian Nicholas","Gary Busey","Albert Hall","Amy Morton","Daniel Stern","Dan Hedaya","John Candy"],"r":{"all":6.22,"mike":6.7,"sean":6.1,"aj":5.85}},
+{"t":"Twister","cb":"Twister","y":1996,"w":"Twister (1996 film)","g":["Action","Adventure"],"d":["Jan de Bont"],"wr":["Michael Crichton","Anne-Marie Martin"],"m":["Mark Mancina"],"dp":["Jack N. Green"],"cast":["Helen Hunt","Bill Paxton","Jami Gertz","Cary Elwes","Philip Seymour Hoffman","Alan Ruck"],"r":{"all":6.19,"mike":5.35,"sean":7.3,"aj":6.1}},
+{"t":"Encino Man","cb":"Encino Man","y":1992,"w":"Encino Man","g":["Comedy"],"d":["Les Mayfield"],"wr":["Shawn Schepps"],"m":["J. Peter Robinson"],"dp":["Robert Brinkmann"],"cast":["Sean Astin","Brendan Fraser","Pauly Shore","Megan Ward","Robin Tunney","Michael DeLuise"],"r":{"all":6.17,"mike":6.5,"sean":4.8,"aj":6.0}},
+{"t":"Batman Forever","cb":"Batman Forever","y":1995,"w":"Batman Forever","g":["Action","Fantasy"],"d":["Joel Schumacher"],"wr":["Lee Batchler","Janet Scott Batchler","Akiva Goldsman"],"m":["Elliot Goldenthal"],"dp":["Stephen Goldblatt"],"cast":["Val Kilmer","Tommy Lee Jones","Jim Carrey","Nicole Kidman","Chris O'Donnell","Michael Gough","Drew Barrymore"],"r":{"all":6.06,"mike":4.9,"sean":7.2,"aj":6.35}},
+{"t":"Road Trip","cb":"Road Trip","y":2000,"w":"Road Trip (2000 film)","g":["Comedy"],"d":["Todd Phillips"],"wr":["Todd Phillips","Scot Armstrong"],"m":["Mike Simpson"],"dp":["Mark Irwin"],"cast":["Breckin Meyer","Seann William Scott","Amy Smart","Paulo Costanzo","DJ Qualls","Tom Green","Rachel Blanchard"],"r":{"all":6.05,"mike":6.3,"sean":6.3,"aj":5.6}},
+{"t":"The Outsiders","cb":"The Outsiders","y":1983,"w":"The Outsiders (film)","g":["Drama"],"d":["Francis Ford Coppola"],"wr":["Kathleen Rowell"],"m":["Carmine Coppola"],"dp":["Stephen H. Burum"],"cast":["C. Thomas Howell","Matt Dillon","Ralph Macchio","Patrick Swayze","Rob Lowe","Emilio Estevez","Tom Cruise","Diane Lane"],"r":{"all":6.04,"mike":4.6,"sean":5.9,"aj":6.85}},
+{"t":"So I Married an Axe Murderer","cb":"So I Married an Axe Murderer","y":1993,"w":"So I Married an Axe Murderer","g":["Comedy","Romance"],"d":["Thomas Schlamme"],"wr":["Robbie Fox"],"m":["Bruce Broughton"],"dp":["Julio Macat"],"cast":["Mike Myers","Nancy Travis","Anthony LaPaglia","Amanda Plummer","Brenda Fricker"],"r":{"all":6.03,"mike":6.1,"sean":6.2,"aj":5.75}},
+{"t":"The Boondock Saints","cb":"Boondock Saints","y":1999,"w":"The Boondock Saints","g":["Action","Crime"],"d":["Troy Duffy"],"wr":["Troy Duffy"],"m":["Jeff Danna"],"dp":["Adam Kane"],"cast":["Sean Patrick Flanery","Norman Reedus","Willem Dafoe","David Della Rocco","Billy Connolly"],"r":{"all":5.92,"mike":7.55,"sean":4.7,"aj":5.5}},
+{"t":"Innerspace","cb":"Innerspace","y":1987,"w":"Innerspace","g":["Sci-Fi","Comedy","Adventure"],"d":["Joe Dante"],"wr":["Jeffrey Boam","Chip Proser"],"m":["Jerry Goldsmith"],"dp":["Andrew Laszlo"],"cast":["Dennis Quaid","Martin Short","Meg Ryan","Kevin McCarthy","Fiona Lewis","Robert Picardo"],"r":{"all":5.91,"mike":4.94,"sean":6.7,"aj":6.1}},
+{"t":"Varsity Blues","cb":"Varsity Blues","y":1999,"w":"Varsity Blues (film)","g":["Sports","Drama","Comedy"],"d":["Brian Robbins"],"wr":["W. Peter Iliff"],"m":["Mark Isham"],"dp":["Charles Cohen"],"cast":["James Van Der Beek","Jon Voight","Paul Walker","Ron Lester","Scott Caan","Amy Smart","Ali Larter"],"r":{"all":5.9,"mike":5.7,"sean":5.8,"aj":5.8}},
+{"t":"Jack Frost","cb":"Jack Frost","y":1998,"w":"Jack Frost (1998 film)","g":["Family","Fantasy","Christmas"],"d":["Troy Miller"],"wr":["Mark Steven Johnson","Steven Bloom","Jonathan Roberts","Jeff Cesario"],"m":["Trevor Rabin"],"dp":["Laszlo Kovacs"],"cast":["Michael Keaton","Kelly Preston","Joseph Cross","Mark Addy","Henry Rollins"],"r":{"all":5.9,"mike":4.0,"sean":7.05,"aj":7.05}},
+{"t":"Waterworld","cb":"Waterworld","y":1995,"w":"Waterworld","g":["Sci-Fi","Action","Adventure"],"d":["Kevin Reynolds"],"wr":["Peter Rader","David Twohy"],"m":["James Newton Howard"],"dp":["Dean Semler"],"cast":["Kevin Costner","Dennis Hopper","Jeanne Tripplehorn","Tina Majorino","Michael Jeter"],"r":{"all":5.89,"mike":4.94,"sean":6.0,"aj":7.2}},
+{"t":"D2: The Mighty Ducks","cb":"D2: The Mighty Ducks","y":1994,"w":"D2: The Mighty Ducks","g":["Sports","Family","Comedy"],"d":["Sam Weisman"],"wr":["Steven Brill"],"m":["J.A.C. Redford"],"dp":["Mark Irwin"],"cast":["Emilio Estevez","Kathryn Erbe","Michael Tucker","Jan Rubes","Joshua Jackson","Kenan Thompson"],"r":{"all":5.84,"mike":6.0,"sean":4.9,"aj":5.1}},
+{"t":"Kindergarten Cop","cb":"Kindergarten Cop","y":1990,"w":"Kindergarten Cop","g":["Comedy","Action"],"d":["Ivan Reitman"],"wr":["Murray Salem","Herschel Weingrod","Timothy Harris"],"m":["Randy Edelman"],"dp":["Michael Chapman"],"cast":["Arnold Schwarzenegger","Penelope Ann Miller","Pamela Reed","Linda Hunt","Richard Tyson","Carroll Baker"],"r":{"all":5.83,"mike":5.3,"sean":5.5,"aj":5.5}},
+{"t":"The Replacements","cb":"The Replacements","y":2000,"w":"The Replacements (film)","g":["Comedy","Sports"],"d":["Howard Deutch"],"wr":["Vince McKewin"],"m":["John Debney"],"dp":["Tak Fujimoto"],"cast":["Keanu Reeves","Gene Hackman","Brooke Langton","Orlando Jones","Jon Favreau","Rhys Ifans","Jack Warden"],"r":{"all":5.83,"mike":5.0,"sean":6.1,"aj":6.4}},
+{"t":"Teenage Mutant Ninja Turtles II: The Secret of the Ooze","cb":"TMNT 2: Ooze","y":1991,"w":"Teenage Mutant Ninja Turtles II: The Secret of the Ooze","g":["Action","Family","Comedy"],"d":["Michael Pressman"],"wr":["Todd W. Langen"],"m":["John Du Prez"],"dp":["Shelly Johnson"],"cast":["Paige Turco","David Warner","Ernie Reyes Jr.","Kevin Clash"],"r":{"all":5.83,"mike":4.8,"sean":6.2,"aj":6.5}},
+{"t":"Little Giants","cb":"Little Giants","y":1994,"w":"Little Giants","g":["Family","Sports","Comedy"],"d":["Duwayne Dunham"],"wr":["James Ferguson","Robert Shallcross","Tommy Swerdlow","Michael Goldberg"],"m":["John Debney"],"dp":["Janusz Kaminski"],"cast":["Rick Moranis","Ed O'Neill","Shawna Waldron","Devon Sawa","Mary Ellen Trainor"],"r":{"all":5.76,"mike":6.0,"sean":5.9,"aj":5.39}},
+{"t":"St. Elmo's Fire","cb":"St. Elmo's Fire","y":1985,"w":"St. Elmo's Fire (film)","g":["Drama","Romance"],"d":["Joel Schumacher"],"wr":["Joel Schumacher","Carl Kurlander"],"m":["David Foster"],"dp":["Stephen H. Burum"],"cast":["Emilio Estevez","Rob Lowe","Andrew McCarthy","Demi Moore","Judd Nelson","Ally Sheedy","Mare Winningham","Andie MacDowell"],"r":{"all":5.74,"mike":7.8,"sean":3.8,"aj":6.35}},
+{"t":"Maximum Overdrive","cb":"Maximum Overdrive","y":1986,"w":"Maximum Overdrive","g":["Horror","Sci-Fi"],"d":["Stephen King"],"wr":["Stephen King"],"m":["AC/DC"],"dp":["Armando Nannuzzi"],"cast":["Emilio Estevez","Pat Hingle","Laura Harrington","Yeardley Smith"],"r":{"all":5.7,"mike":5.1,"sean":7.2,"aj":4.8}},
+{"t":"The Holiday","cb":"The Holiday","y":2006,"w":"The Holiday","g":["Romance","Comedy","Christmas"],"d":["Nancy Meyers"],"wr":["Nancy Meyers"],"m":["Hans Zimmer"],"dp":["Dean Cundey"],"cast":["Cameron Diaz","Kate Winslet","Jude Law","Jack Black","Eli Wallach","Edward Burns","Rufus Sewell"],"r":{"all":5.68,"mike":5.2,"sean":7.5,"aj":7.5}},
+{"t":"Teen Wolf","cb":"Teen Wolf","y":1985,"w":"Teen Wolf","g":["Comedy","Fantasy","Sports"],"d":["Rod Daniel"],"wr":["Jeph Loeb","Matthew Weisman"],"m":["Miles Goodman"],"dp":["Tim Suhrstedt"],"cast":["Michael J. Fox","James Hampton","Scott Paulin","Susan Ursitti","Jerry Levine"],"r":{"all":5.66,"mike":5.4,"sean":7.0,"aj":6.0}},
+{"t":"Event Horizon","cb":"Event Horizon","y":1997,"w":"Event Horizon (film)","g":["Horror","Sci-Fi"],"d":["Paul W. S. Anderson"],"wr":["Philip Eisner"],"m":["Michael Kamen"],"dp":["Adrian Biddle"],"cast":["Laurence Fishburne","Sam Neill","Kathleen Quinlan","Joely Richardson","Jason Isaacs","Sean Pertwee"],"r":{"all":5.6,"mike":5.67,"sean":6.0,"aj":3.75}},
+{"t":"Dirty Dancing","cb":"Dirty Dancing","y":1987,"w":"Dirty Dancing","g":["Romance","Drama"],"d":["Emile Ardolino"],"wr":["Eleanor Bergstein"],"m":["John Morris"],"dp":["Jeff Jur"],"cast":["Patrick Swayze","Jennifer Grey","Jerry Orbach","Cynthia Rhodes","Kelly Bishop"],"r":{"all":5.58,"mike":4.6,"sean":6.1,"aj":5.1}},
+{"t":"The Lost Boys","cb":"The Lost Boys","y":1987,"w":"The Lost Boys","g":["Horror","Comedy"],"d":["Joel Schumacher"],"wr":["Janice Fischer","James Jeremias","Jeffrey Boam"],"m":["Thomas Newman"],"dp":["Michael Chapman"],"cast":["Jason Patric","Corey Haim","Kiefer Sutherland","Corey Feldman","Dianne Wiest","Jami Gertz","Edward Herrmann","Alex Winter"],"r":{"all":5.55,"mike":4.8,"sean":7.0,"aj":4.9}},
+{"t":"The Santa Clause 2","cb":"Santa Clause 2","y":2002,"w":"The Santa Clause 2","g":["Comedy","Family","Christmas"],"d":["Michael Lembeck"],"wr":["Don Rhymer","Cinco Paul","Ken Daurio","Ed Decter","John J. Strauss"],"m":["George S. Clinton"],"dp":["Adam Greenberg"],"cast":["Tim Allen","Elizabeth Mitchell","Judge Reinhold","Wendy Crewson","Eric Lloyd","David Krumholtz","Spencer Breslin"],"r":{"all":5.53,"mike":4.4,"sean":5.9,"aj":6.0}},
+{"t":"Cobra","cb":"Cobra","y":1986,"w":"Cobra (1986 film)","g":["Action"],"d":["George P. Cosmatos"],"wr":["Sylvester Stallone"],"m":["Sylvester Levay"],"dp":["Ric Waite"],"cast":["Sylvester Stallone","Brigitte Nielsen","Reni Santoni","Andrew Robinson","Brian Thompson"],"r":{"all":5.54,"mike":4.95,"sean":8.1,"aj":5.0}},
+{"t":"Cliffhanger","cb":"Cliffhangers","y":1993,"w":"Cliffhanger (film)","g":["Action","Thriller"],"d":["Renny Harlin"],"wr":["Michael France","Sylvester Stallone"],"m":["Trevor Jones"],"dp":["Alex Thomson"],"cast":["Sylvester Stallone","John Lithgow","Michael Rooker","Janine Turner","Rex Linn"],"r":{"all":5.5,"mike":4.8,"sean":5.9,"aj":5.8}},
+{"t":"Batman","cb":"Batman","y":1989,"w":"Batman (1989 film)","g":["Action","Fantasy"],"d":["Tim Burton"],"wr":["Sam Hamm","Warren Skaaren"],"m":["Danny Elfman"],"dp":["Roger Pratt"],"cast":["Michael Keaton","Jack Nicholson","Kim Basinger","Robert Wuhl","Pat Hingle","Billy Dee Williams","Michael Gough","Jack Palance"],"r":{"all":5.47,"mike":5.1,"sean":6.3,"aj":5.0}},
+{"t":"Mortal Kombat","cb":"Mortal Kombat","y":1995,"w":"Mortal Kombat (1995 film)","g":["Action","Fantasy"],"d":["Paul W. S. Anderson"],"wr":["Kevin Droney"],"m":["George S. Clinton"],"dp":["John R. Leonetti"],"cast":["Christopher Lambert","Robin Shou","Linden Ashby","Cary-Hiroyuki Tagawa","Bridgette Wilson","Talisa Soto"],"r":{"all":5.47,"mike":5.0,"sean":5.5,"aj":5.9}},
+{"t":"Ghost Rider","cb":"Ghost Rider","y":2007,"w":"Ghost Rider (2007 film)","g":["Action","Fantasy"],"d":["Mark Steven Johnson"],"wr":["Mark Steven Johnson"],"m":["Christopher Young"],"dp":["Russell Boyd"],"cast":["Nicolas Cage","Eva Mendes","Wes Bentley","Sam Elliott","Donal Logue","Peter Fonda"],"r":{"all":5.24,"mike":4.9,"sean":5.8,"aj":5.0}},
+{"t":"50 First Dates","cb":"50 First Dates","y":2004,"w":"50 First Dates","g":["Comedy","Romance"],"d":["Peter Segal"],"wr":["George Wing"],"m":["Teddy Castellucci"],"dp":["Jack N. Green"],"cast":["Adam Sandler","Drew Barrymore","Rob Schneider","Sean Astin","Dan Aykroyd","Allen Covert"],"r":{"all":5.23,"mike":4.2,"sean":5.5,"aj":6.0}},
+{"t":"American Pie","cb":"Amerian Pie","y":1999,"w":"American Pie (film)","g":["Comedy"],"d":["Paul Weitz"],"wr":["Adam Herz"],"m":["David Lawrence"],"dp":["Richard Crudo"],"cast":["Jason Biggs","Chris Klein","Thomas Ian Nicholas","Seann William Scott","Alyson Hannigan","Eugene Levy","Tara Reid","Mena Suvari","Natasha Lyonne","Shannon Elizabeth"],"r":{"all":5.21,"mike":6.15,"sean":5.0,"aj":3.2}},
+{"t":"Surf Ninjas","cb":"Surf Ninjas","y":1993,"w":"Surf Ninjas","g":["Comedy","Family","Action"],"d":["Neal Israel"],"wr":["Dan Gordon"],"m":["David Kitay"],"dp":["Arthur Albert","Victor Hammer"],"cast":["Ernie Reyes Jr.","Rob Schneider","Nicolas Cowan","Leslie Nielsen","Tone Loc"],"r":{"all":5.18,"mike":4.5,"sean":4.9,"aj":5.8}},
+{"t":"Ernest Scared Stupid","cb":"Ernest Scared Stupid","y":1991,"w":"Ernest Scared Stupid","g":["Comedy","Family","Horror"],"d":["John R. Cherry III"],"wr":["Charlie Gale","Coke Sams"],"m":["Bruce Arntson","Kirby Shelstad"],"dp":["Hanania Baer"],"cast":["Jim Varney","Eartha Kitt","Austin Nagler","Shay Astar"],"r":{"all":5.13,"mike":5.0,"sean":5.1,"aj":5.3}},
+{"t":"Over the Top","cb":"Over The Top","y":1987,"w":"Over the Top (1987 film)","g":["Sports","Drama","Action"],"d":["Menahem Golan"],"wr":["Stirling Silliphant","Sylvester Stallone"],"m":["Giorgio Moroder"],"dp":["David Gurfinkel"],"cast":["Sylvester Stallone","Robert Loggia","Susan Blakely","David Mendenhall","Rick Zumwalt"],"r":{"all":5.1,"mike":5.0,"sean":5.9,"aj":4.4}},
+{"t":"Jingle All the Way","cb":"Jingle All The Way","y":1996,"w":"Jingle All the Way","g":["Comedy","Family","Christmas"],"d":["Brian Levant"],"wr":["Randy Kornfield"],"m":["David Newman"],"dp":["Victor J. Kemper"],"cast":["Arnold Schwarzenegger","Sinbad","Phil Hartman","Rita Wilson","Jake Lloyd","Robert Conrad","Jim Belushi"],"r":{"all":5.09,"mike":4.3,"sean":5.3,"aj":5.95}},
+{"t":"Iron Eagle","cb":"Iron Eagle","y":1986,"w":"Iron Eagle","g":["Action","War"],"d":["Sidney J. Furie"],"wr":["Kevin Alyn Elders","Sidney J. Furie"],"m":["Basil Poledouris"],"dp":["Adam Greenberg"],"cast":["Louis Gossett Jr.","Jason Gedrick","David Suchet","Tim Thomerson"],"r":{"all":5.06,"mike":5.4,"sean":5.9,"aj":3.95}},
+{"t":"The Cutting Edge","cb":"The Cutting Edge","y":1992,"w":"The Cutting Edge","g":["Romance","Sports","Comedy"],"d":["Paul Michael Glaser"],"wr":["Tony Gilroy"],"m":["Patrick Williams"],"dp":["Elliot Davis"],"cast":["D.B. Sweeney","Moira Kelly","Roy Dotrice","Terry O'Quinn","Dwier Brown"],"r":{"all":5.0,"mike":4.0,"sean":6.1,"aj":4.9}},
+{"t":"Street Fighter","cb":"Street Fighter","y":1994,"w":"Street Fighter (1994 film)","g":["Action"],"d":["Steven E. de Souza"],"wr":["Steven E. de Souza"],"m":["Graeme Revell"],"dp":["William A. Fraker"],"cast":["Jean-Claude Van Damme","Raul Julia","Ming-Na Wen","Damian Chapa","Kylie Minogue","Wes Studi"],"r":{"all":4.97,"mike":5.1,"sean":5.9,"aj":3.9}},
+{"t":"Harry and the Hendersons","cb":"Harry and the Hendersons","y":1987,"w":"Harry and the Hendersons","g":["Family","Comedy","Fantasy"],"d":["William Dear"],"wr":["William Dear","William E. Martin","Ezra D. Rappaport"],"m":["Bruce Broughton"],"dp":["Allen Daviau"],"cast":["John Lithgow","Melinda Dillon","Don Ameche","David Suchet","Lainie Kazan","Kevin Peter Hall"],"r":{"all":4.93,"mike":4.0,"sean":7.8,"aj":3.2}},
+{"t":"Bio-Dome","cb":"Bio-Dome","y":1996,"w":"Bio-Dome","g":["Comedy"],"d":["Jason Bloom"],"wr":["Kip Koenig","Scott Marcano"],"m":["Andrew Gross"],"dp":["Phedon Papamichael"],"cast":["Pauly Shore","Stephen Baldwin","William Atherton","Joey Lauren Adams","Teresa Hill","Kylie Minogue"],"r":{"all":4.91,"mike":5.6,"sean":3.8,"aj":5.05}},
+{"t":"3 Ninjas","cb":"3 Ninjas","y":1992,"w":"3 Ninjas","g":["Family","Action","Comedy"],"d":["Jon Turteltaub"],"wr":["Edward Emanuel"],"m":["Rick Marvin"],"dp":["Richard Michalak"],"cast":["Victor Wong","Michael Treanor","Max Elliott Slade","Chad Power","Rand Kingsley"],"r":{"all":4.83,"mike":3.0,"sean":4.5,"aj":2.4}},
+{"t":"Anaconda","cb":"Anaconda","y":1997,"w":"Anaconda (film)","g":["Horror","Adventure"],"d":["Luis Llosa"],"wr":["Hans Bauer","Jim Cash","Jack Epps Jr."],"m":["Randy Edelman"],"dp":["Bill Butler"],"cast":["Jennifer Lopez","Ice Cube","Jon Voight","Eric Stoltz","Owen Wilson","Jonathan Hyde","Kari Wuhrer","Danny Trejo"],"r":{"all":4.8,"mike":4.7,"sean":5.3,"aj":3.3}},
+{"t":"Bad Boys","cb":"Bad Boys","y":1995,"w":"Bad Boys (1995 film)","g":["Action","Comedy"],"d":["Michael Bay"],"wr":["Michael Barrie","Jim Mulholland","Doug Richardson"],"m":["Mark Mancina"],"dp":["Howard Atherton"],"cast":["Martin Lawrence","Will Smith","Tea Leoni","Tcheky Karyo","Joe Pantoliano","Theresa Randle"],"r":{"all":4.73,"mike":4.7,"sean":5.0,"aj":5.2}},
+{"t":"Explorers","cb":"Explorers","y":1985,"w":"Explorers (film)","g":["Sci-Fi","Family","Adventure"],"d":["Joe Dante"],"wr":["Eric Luke"],"m":["Jerry Goldsmith"],"dp":["John Hora"],"cast":["Ethan Hawke","River Phoenix","Jason Presson","Amanda Peterson","Dick Miller","Robert Picardo"],"r":{"all":4.65,"mike":4.4,"sean":3.9,"aj":4.9}},
+{"t":"GoldenEye","cb":"GoldenEye","y":1995,"w":"GoldenEye","g":["Action","Thriller"],"d":["Martin Campbell"],"wr":["Jeffrey Caine","Bruce Feirstein"],"m":["Eric Serra"],"dp":["Phil Meheux"],"cast":["Pierce Brosnan","Sean Bean","Izabella Scorupco","Famke Janssen","Joe Don Baker","Judi Dench","Alan Cumming","Robbie Coltrane"],"r":{"all":4.41,"mike":2.95,"sean":5.007,"aj":5.3}},
+{"t":"Cocktail","cb":"Cocktail","y":1988,"w":"Cocktail (1988 film)","g":["Romance","Drama"],"d":["Roger Donaldson"],"wr":["Heywood Gould"],"m":["J. Peter Robinson"],"dp":["Dean Semler"],"cast":["Tom Cruise","Bryan Brown","Elisabeth Shue","Kelly Lynch","Gina Gershon"],"r":{"all":3.83,"mike":3.9,"sean":3.7,"aj":3.9}},
+{"t":"Howard the Duck","cb":"Howard the Duck","y":1986,"w":"Howard the Duck (film)","g":["Sci-Fi","Comedy"],"d":["Willard Huyck"],"wr":["Willard Huyck","Gloria Katz"],"m":["John Barry"],"dp":["Richard H. Kline"],"cast":["Lea Thompson","Jeffrey Jones","Tim Robbins","Ed Gale","Chip Zien"],"r":{"all":3.13,"mike":2.2,"sean":3.5,"aj":2.05}},
+{"t":"Blank Check","cb":"Blank Check","y":1994,"w":"Blank Check (film)","g":["Family","Comedy"],"d":["Rupert Wainwright"],"wr":["Blake Snyder","Colby Carr"],"m":["Nicholas Pike"],"dp":["Bill Pope"],"cast":["Brian Bonsall","Karen Duffy","Miguel Ferrer","James Rebhorn","Tone Loc","Michael Lerner"],"r":{"all":2.83,"mike":2.9,"sean":3.5,"aj":2.1}},
+{"t":"Super Mario Bros.","cb":"Super Mario Bros","y":1993,"w":"Super Mario Bros. (film)","g":["Adventure","Family","Fantasy"],"d":["Rocky Morton","Annabel Jankel"],"wr":["Parker Bennett","Terry Runte","Ed Solomon"],"m":["Alan Silvestri"],"dp":["Dean Semler"],"cast":["Bob Hoskins","John Leguizamo","Dennis Hopper","Samantha Mathis","Fisher Stevens","Fiona Shaw"],"r":{"all":2.59,"mike":2.0,"sean":2.0,"aj":2.1}}
+];
+
+/* ---------- CONNECTION TYPES ---------- */
+const TYPES = [
+  {k:"d",    name:"Director",        color:"#f2b84b", on:true},
+  {k:"cast", name:"Cast",            color:"#ff7a66", on:true},
+  {k:"wr",   name:"Writer",          color:"#6fd3b0", on:true},
+  {k:"m",    name:"Composer",        color:"#c39bff", on:true},
+  {k:"dp",   name:"Cinematographer", color:"#6cb8ff", on:true}
+];
+const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
+
+function valuesFor(m, k){
+  if (k === "fr")  return m.fr ? [m.fr] : [];
+  if (k === "cast") return (m.cast || []).concat(m.sup || []);          // top-billed and supporting both count as cast
+  if (k === "c")   return m.c ? [m.c] : [];
+  if (k === "dec") return m.y ? [Math.floor(m.y/10)*10 + "s"] : [];
+  return m[k] || [];
+}
+
+/* every pair of movies that shares something, with the reasons */
+const PAIRS = new Map();
+for (const T of TYPES){
+  const by = new Map();
+  SHELF.forEach((m,i) => { for (const v of new Set(valuesFor(m, T.k))) (by.get(v) || by.set(v,[]).get(v)).push(i); });
+  for (const [v, list] of by){
+    for (let a=0; a<list.length; a++) for (let b=a+1; b<list.length; b++){
+      const key = list[a] + "-" + list[b];
+      const p = PAIRS.get(key) || PAIRS.set(key, {a:list[a], b:list[b], r:{}}).get(key);
+      (p.r[T.k] = p.r[T.k] || []).push(v);
+    }
+  }
+}
+
+/* ---------- STATE ---------- */
+const N = SHELF.map((m,i) => ({m, i, x:0, y:0, vx:0, vy:0, deg:0, ph:Math.random()*6.283, tilt:(Math.random()*5-2.5), el:null, fixed:false}));
+let edges = [], nbrs = N.map(() => []), selected = null, selTag = null, query = "";
+const focused = () => selected !== null || selTag !== null;
+/* whose score sizes the posters, and which genre (if any) is picked */
+let rater = "all", genre = "";
+const RATERS = [["all","All"],["aj","AJ"],["mike","Mike"],["sean","Sean"]];
+const RNAME = {all:"Overall", aj:"AJ", mike:"Mike", sean:"Sean"};
+const GENRES = [...new Set(SHELF.flatMap(m => m.g))].sort();
+const scoreOf = n => n.m.r[rater];
+const scaleFor = v => 0.45 + 1.5*Math.pow(Math.max(0, Math.min(1, (v-2.5)/7.5)), 1.5);
+const fmtScore = v => String(Math.round(v*100)/100);
+let view = {k:1, tx:0, ty:0}, alpha = 1, userMoved = false;
+const stage = document.getElementById("stage"), world = document.getElementById("world"),
+      canvas = document.getElementById("threads"), ctx = canvas.getContext("2d"),
+      lab = document.getElementById("labels"), tctx = lab.getContext("2d"),
+      panel = document.getElementById("panel"), bar = document.getElementById("bar");
+const reduceMotion = true;   // with 265 posters the web holds still unless you move it
+let needs = 3, lastSum = NaN;
+const poke = () => { needs = 3; };
+
+/* Every name that two or more movies share gets one tag in the web. */
+const G = [];
+{
+  const byName = new Map();
+  for (const T of TYPES){
+    const m = new Map();
+    SHELF.forEach((mv,i) => { for (const v of new Set(valuesFor(mv, T.k))) (m.get(v) || m.set(v,[]).get(v)).push(i); });
+    for (const [v, list] of m) if (list.length > 1){
+      const g = byName.get(v) || byName.set(v, {name:v, by:{}, x:0, y:0, vx:0, vy:0, w:0, on:true}).get(v);
+      g.by[T.k] = list;
+    }
+  }
+  for (const g of byName.values()){ g.all = [...new Set(Object.values(g.by).flat())]; G.push(g); }
+}
+const tagPx = n => Math.min(23, 11.5 + 3*Math.sqrt(Math.max(0, n-2)));   // 2 movies: small. A dozen: big.
+for (const g of G){ g.px = tagPx(g.all.length); g.h = g.px + 9; }
+const TAGS_BY_SIZE = G.slice().sort((a,b) => a.px - b.px);               // drawn small first, so big names sit on top
+let hoverN = null, hoverG = null;
+function refreshTags(){
+  for (const g of G){
+    const ks = TYPES.filter(T => T.on && g.by[T.k]);
+    g.on = ks.length > 0; g.T = ks[0] || null; g.movies = [...new Set(ks.flatMap(T => g.by[T.k]))];
+  }
+}
+function rebuildEdges(){
+  refreshTags();
+  edges = []; nbrs = N.map(() => []); N.forEach(n => n.deg = 0);
+  for (const p of PAIRS.values()){
+    const kinds = TYPES.filter(T => T.on && p.r[T.k]);
+    if (!kinds.length) continue;
+    const names = [...new Set(kinds.flatMap(T => p.r[T.k]))];
+    const label = names.slice(0,2).join(", ") + (names.length > 2 ? " +" + (names.length-2) : "");
+    const items = [], seen = new Set();
+    for (const T of kinds) for (const v of p.r[T.k]) if (!seen.has(v)){ seen.add(v); items.push({name:v, T}); }
+    const e = {a:p.a, b:p.b, kinds, color:kinds[0].color, w:kinds.length, p, label, items};
+    edges.push(e); nbrs[p.a].push(e); nbrs[p.b].push(e); N[p.a].deg++; N[p.b].deg++;
+  }
+}
+function countFor(k){ let c = 0; for (const p of PAIRS.values()) if (p.r[k]) c++; return c; }
+
+/* ---------- BUILD NODES ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const FMT = {"4K":"4K","Blu-ray":"BR","DVD":"DVD","Criterion":"CC"};
+N.forEach(n => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "node";
+  b.setAttribute("aria-label", n.m.t + (n.m.y ? ", " + n.m.y : ""));
+  b.innerHTML = `<span class="pin" style="rotate:${n.tilt.toFixed(1)}deg"><span class="card">${esc(n.m.t)}</span><img alt="" draggable="false">`
+    + `<span class="fmt"></span></span><span class="cap">${esc(n.m.t)}</span>`;
+  world.appendChild(b); n.el = b;
+  b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); select(n.i); } });
+});
+
+/* poster size follows the score of whoever is picked */
+function applySizes(){
+  poke();
+  N.forEach(n => {
+    const sc = scaleFor(scoreOf(n)), w = 66*sc, h = 99*sc, st = n.el.style;
+    st.width = w.toFixed(1) + "px"; st.height = h.toFixed(1) + "px";
+    st.margin = `${(-h/2).toFixed(1)}px 0 0 ${(-w/2).toFixed(1)}px`;
+    n.el.querySelector(".card").style.fontSize = (10.5*Math.max(.72, sc)).toFixed(1) + "px";
+    n.el.querySelector(".fmt").textContent = fmtScore(scoreOf(n));
+  });
+}
+
+/* ---------- LAYOUT ----------
+   A small force simulation works out a starting spot for every poster and every
+   name tag. After that nothing moves on its own: things stay wherever you drag
+   them, and the spots are remembered the next time the file is opened. */
+const REP = 15000, SPRING = 0.06, LEN = 120, GRAV = 0.0075, ASP = 1.3, CW = 80, CH = 118;
+function runLayout(pins){
+  const P = N.concat(G), links = [];
+  const pinOf = p => pins && pins[p.all ? "@" + p.name : p.m.t];
+  N.forEach((n,i) => { const a = i*2.399963, r = 46*Math.sqrt(i+1); n.x = Math.cos(a)*r*1.4; n.y = Math.sin(a)*r; n.vx = n.vy = 0; const sc = scaleFor(n.m.r.all); n.bw = 66*sc + 16; n.bh = 99*sc + 26; n.tags = 0; });
+  G.forEach((g,i) => {
+    g.bw = g.name.length*g.px*.5 + 24; g.bh = g.px + 15; g.vx = g.vy = 0; g.x = g.y = 0;
+    for (const id of g.all){ links.push([g, N[id]]); N[id].tags++; g.x += N[id].x/g.all.length; g.y += N[id].y/g.all.length; }
+    g.x += Math.cos(i*1.7)*20; g.y += Math.sin(i*1.7)*20;
+  });
+  for (const p of P){ const h = pinOf(p); p.pinned = !!h; if (h){ p.x = h[0]; p.y = h[1]; } }
+  let alpha = 1;
+  for (let step=0; step<1100; step++){
+    for (const p of P){ p.fx = 0; p.fy = 0; }
+    for (let i=0; i<P.length; i++) for (let j=i+1; j<P.length; j++){
+      const A = P[i], B = P[j]; let dx = B.x-A.x, dy = B.y-A.y;
+      if (!dx && !dy){ dx = .5; dy = .3; }
+      const d2 = dx*dx + dy*dy, d = Math.sqrt(d2), f = Math.min(REP/d2, 6);
+      A.fx -= dx/d*f; A.fy -= dy/d*f; B.fx += dx/d*f; B.fy += dy/d*f;
+      const w = (A.bw+B.bw)/2, h = (A.bh+B.bh)/2, ox = w - Math.abs(dx), oy = h - Math.abs(dy);   // nothing overlaps
+      if (ox > 0 && oy > 0){
+        if (ox/w < oy/h){ const s = Math.sign(dx||1)*ox*.25; if (!A.pinned) A.x -= s; if (!B.pinned) B.x += s; }
+        else { const s = Math.sign(dy||1)*oy*.25; if (!A.pinned) A.y -= s; if (!B.pinned) B.y += s; }
+      }
+    }
+    for (const [g, n] of links){
+      const dx = n.x-g.x, dy = n.y-g.y, d = Math.hypot(dx,dy) || 1;
+      const f = (d-LEN) * SPRING / Math.sqrt(Math.max(1, g.all.length/2.5));
+      g.fx += dx/d*f; g.fy += dy/d*f; n.fx -= dx/d*f/Math.sqrt(Math.max(1, n.tags/2)); n.fy -= dy/d*f/Math.sqrt(Math.max(1, n.tags/2));
+    }
+    let ring = 0;
+    for (const p of P) if (p.all || p.tags) ring = Math.max(ring, Math.hypot(p.x, p.y*ASP));
+    ring += 130;
+    for (const p of P){
+      if (p.all || p.tags){ p.fx -= p.x*GRAV; p.fy -= p.y*GRAV*ASP*ASP; }
+      else {                                                       // loners drift out to the edge
+        const r = Math.hypot(p.x, p.y*ASP) || 1, f = (ring - r) * 0.035;
+        p.fx += p.x/r*f; p.fy += p.y*ASP/r*f*ASP;
+      }
+      if (p.pinned) continue;
+      p.vx = (p.vx + p.fx*alpha) * 0.78; p.vy = (p.vy + p.fy*alpha) * 0.78;
+      p.x += p.vx; p.y += p.vy;
+    }
+    alpha *= 0.994;
+  }
+  for (let step=0; step<500; step++){                          // last pass: nothing but un-overlapping
+    for (let i=0; i<P.length; i++) for (let j=i+1; j<P.length; j++){
+      const A = P[i], B = P[j], dx = B.x-A.x, dy = B.y-A.y;
+      const w = (A.bw+B.bw)/2, h = (A.bh+B.bh)/2, ox = w - Math.abs(dx), oy = h - Math.abs(dy);
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox/w < oy/h){ const s = Math.sign(dx||1)*ox*.5; if (!A.pinned) A.x -= s; if (!B.pinned) B.x += s; }
+      else { const s = Math.sign(dy||1)*oy*.5; if (!A.pinned) A.y -= s; if (!B.pinned) B.y += s; }
+    }
+  }
+  for (const p of P){ p.home = {x:p.x, y:p.y}; p.ring = null; }
+}
+const STORE = "cbweb-layout-2";
+let saved = {home:{}, ring:{}, hub:{}};
+function loadSaved(){
+  try { const s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && s.home && s.ring){ saved = s; saved.hub = saved.hub || {}; } } catch(e){}
+}
+function persist(){ try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch(e){} }
+const BAKED = {"Dazed and Confused":[333,-192],"The Big Lebowski":[-108,525],"Pulp Fiction":[276,713],"Saving Private Ryan":[-190,828],"Goodfellas":[-231,1320],"The Breakfast Club":[-141,-1247],"American Movie":[-1386,924],"Back to the Future":[-202,-910],"Terminator 2: Judgment Day":[1252,-438],"The Social Network":[-1266,144],"Shaun of the Dead":[119,-1477],"Inglourious Basterds":[497,1132],"The Silence of the Lambs":[-594,1115],"Boogie Nights":[370,1118],"The Goonies":[405,708],"Heat":[-421,898],"Seven":[280,191],"Snatch":[649,280],"Fight Club":[-1060,178],"Reservoir Dogs":[245,931],"The Shining":[-1626,76],"The Lord of the Rings: The Two Towers":[1288,583],"Dumb and Dumber":[-940,168],"The Departed":[-763,693],"The Lord of the Rings: The Fellowship of the Ring":[1326,356],"Alien":[657,-301],"Caddyshack":[725,-540],"The Sandlot":[-324,-667],"Aliens":[1184,158],"Halloween":[1362,-82],"Raiders of the Lost Ark":[210,-199],"Back to the Future Part II":[-270,-1151],"Home Alone":[-642,841],"Jurassic Park":[-406,355],"The Sting":[-218,-235],"Black Hawk Down":[-369,94],"The Matrix":[-625,306],"Stand by Me":[1060,-140],"Star Wars":[1065,95],"True Romance":[-149,110],"Wet Hot American Summer":[349,1408],"Rocky":[-702,-192],"The Terminator":[1485,-474],"A League of Their Own":[-732,303],"Uncle Buck":[-382,720],"Casino":[-353,1337],"Die Hard":[-103,-245],"Donnie Darko":[-730,41],"RoboCop":[-109,1303],"Forrest Gump":[-912,540],"The Wedding Singer":[-1004,-202],"Jaws":[946,-161],"Ferris Bueller's Day Off":[-591,-163],"Bill & Ted's Excellent Adventure":[107,-783],"Gladiator":[871,375],"The Blues Brothers":[852,174],"Lethal Weapon":[-700,508],"Office Space":[679,-836],"Fargo":[-511,350],"An American Werewolf in London":[543,-319],"Raising Arizona":[-420,-109],"Big":[-925,370],"The Rock":[554,-89],"Ghostbusters":[619,-559],"Happy Gilmore":[-1384,164],"Last Action Hero":[409,-632],"The Talented Mr. Ripley":[237,1132],"Pee-wee's Big Adventure":[-1586,-174],"Role Models":[125,1469],"True Lies":[1034,-494],"The Usual Suspects":[514,-591],"Field of Dreams":[762,406],"My Cousin Vinny":[120,2],"Dawn of the Dead":[1679,-542],"Lethal Weapon 2":[-391,553],"Beetlejuice":[-1321,-62],"The Thing":[1472,-279],"Home Alone 2: Lost in New York":[-754,923],"American Graffiti":[896,-744],"Election":[-912,-5],"Blazing Saddles":[-1171,561],"A Christmas Story":[1803,-154],"The Princess Bride":[0,1148],"The Fugitive":[118,-592],"Harry Potter and the Sorcerer's Stone":[129,1115],"American Psycho":[-1312,347],"The Blair Witch Project":[1333,-970],"Mrs. Doubtfire":[-192,1033],"The Monster Squad":[176,-402],"Blast from the Past":[17,733],"Who Framed Roger Rabbit":[-427,-661],"Little Shop of Horrors":[214,-590],"Remember the Titans":[1210,384],"A Knight's Tale":[958,149],"Planes, Trains and Automobiles":[-562,-327],"Airplane!":[-259,91],"That Thing You Do!":[394,160],"Napoleon Dynamite":[1368,-280],"Spider-Man":[-1490,160],"Men in Black":[-757,-409],"Monty Python and the Holy Grail":[1171,1101],"The Warriors":[-1506,354],"Ghost":[931,-583],"Teenage Mutant Ninja Turtles":[901,779],"Back to the Future Part III":[0,-775],"Ace Ventura: Pet Detective":[-1027,351],"O Brother, Where Art Thou?":[-545,84],"The Jerk":[-219,-652],"Die Hard with a Vengeance":[4,-244],"Heathers":[-1293,-657],"Tombstone":[833,-555],"Best in Show":[-533,829],"After Hours":[-805,525],"The Wizard":[-316,-888],"Super Troopers":[-324,-1342],"The Player":[495,-1050],"First Blood":[-897,-223],"The Karate Kid":[-818,-562],"The Mighty Ducks":[475,-842],"Tommy Boy":[-1067,-422],"Young Guns":[8,-1062],"UHF":[841,958],"Face/Off":[347,-1143],"Fast Times at Ridgemont High":[511,934],"Independence Day":[-970,759],"The Bourne Identity":[-3,-1255],"Big Trouble in Little China":[1575,-171],"Addams Family Values":[-1194,-662],"Armageddon":[450,-131],"The Fifth Element":[591,713],"Major League":[-516,-1035],"Gone in 60 Seconds":[976,364],"The Texas Chain Saw Massacre":[-1778,326],"Go":[-805,-844],"Clue":[-1219,-53],"The Santa Clause":[986,553],"Coming to America":[1141,-523],"Hot Tub Time Machine":[297,8],"Top Gun":[842,-116],"Elf":[574,476],"Point Break":[-1198,-256],"Predator":[-640,-576],"Starship Troopers":[117,1315],"Groundhog Day":[-90,-1008],"Friday":[999,762],"Hook":[86,373],"Scream":[-1098,-659],"Rad":[90,584],"Grandma's Boy":[-1004,-595],"American Beauty":[571,-798],"Spaceballs":[-391,1124],"Con Air":[656,-101],"National Treasure":[700,587],"Tremors":[193,-1198],"Austin Powers: International Man of Mystery":[1170,-59],"The Fast and the Furious":[-1409,347],"Wayne's World":[-709,-808],"Duel":[585,71],"The Mummy":[480,369],"Rounders":[-87,273],"Ghostbusters II":[312,-624],"Bloodsport":[-1488,-586],"10 Things I Hate About You":[791,-791],"Honey, I Shrunk the Kids":[891,549],"The Great Outdoors":[379,-816],"Hocus Pocus":[748,254],"Batman Returns":[-1291,-260],"Three Amigos":[677,84],"The 'Burbs":[792,611],"The Crow":[-1389,-313],"Scrooged":[-729,-560],"Son in Law":[1133,-381],"X-Men":[749,-112],"Parenthood":[267,384],"The Ghost and the Darkness":[6,940],"Necessary Roughness":[-1104,-206],"The Cable Guy":[390,13],"Demolition Man":[-913,-648],"Heavyweights":[1029,-701],"Cool Runnings":[-80,732],"Blade":[-980,-830],"Wayne's World 2":[-976,-429],"Flight of the Navigator":[-802,-166],"101 Dalmatians":[178,379],"Clueless":[25,1295],"A Nightmare on Elm Street":[-1150,-855],"Gremlins":[686,936],"Weird Science":[-323,-98],"Just Friends":[-658,-372],"Grumpy Old Men":[-539,-835],"Willy Wonka & the Chocolate Factory":[-1600,236],"Airborne":[1432,210],"Air Force One":[350,904],"Speed":[-180,-423],"Mystery, Alaska":[1298,73],"The Evil Dead":[-1687,236],"Red Dawn":[288,-830],"EuroTrip":[356,378],"Mallrats":[-525,-672],"BASEketball":[-5,-71],"Crocodile Dundee":[-1061,721],"Airheads":[-318,-307],"Days of Thunder":[331,552],"2 Fast 2 Furious":[-1075,518],"The Punisher":[1231,-626],"Out Cold":[1,575],"Road House":[204,-759],"National Lampoon's Christmas Vacation":[-829,307],"Final Destination":[-849,933],"The Running Man":[294,-980],"Death Becomes Her":[-402,-308],"The Legend of Billie Jean":[-94,-846],"Empire Records":[1172,-192],"Rock Star":[96,-229],"Weekend at Bernie's":[-894,-846],"Rookie of the Year":[-485,662],"Twister":[179,178],"Encino Man":[756,-313],"Batman Forever":[-634,68],"Road Trip":[-605,453],"The Outsiders":[90,-928],"So I Married an Axe Murderer":[96,209],"The Boondock Saints":[-1679,-76],"Innerspace":[678,716],"Varsity Blues":[-1160,105],"Jack Frost":[342,-405],"Waterworld":[266,-405],"D2: The Mighty Ducks":[582,-969],"Kindergarten Cop":[941,-449],"The Replacements":[211,2],"Teenage Mutant Ninja Turtles II: The Secret of the Ooze":[598,1093],"Little Giants":[-86,858],"St. Elmo's Fire":[-174,-1063],"Maximum Overdrive":[-421,-1102],"The Holiday":[505,695],"Teen Wolf":[276,-1273],"Event Horizon":[173,598],"Dirty Dancing":[-822,18],"The Lost Boys":[447,-316],"The Santa Clause 2":[1192,518],"Cobra":[217,-974],"Cliffhanger":[1013,-358],"Batman":[-1309,-383],"Mortal Kombat":[1510,227],"Ghost Rider":[-476,-283],"50 First Dates":[-461,65],"American Pie":[-161,677],"Surf Ninjas":[-292,636],"Ernest Scared Stupid":[-705,-1325],"Over the Top":[-899,-529],"Jingle All the Way":[-615,-819],"Iron Eagle":[1275,188],"The Cutting Edge":[344,-1345],"Street Fighter":[-702,-928],"Harry and the Hendersons":[1558,-295],"Bio-Dome":[-557,-455],"3 Ninjas":[1416,364],"Anaconda":[1094,231],"Bad Boys":[-506,-126],"Explorers":[1065,617],"GoldenEye":[432,903],"Cocktail":[155,-909],"Howard the Duck":[421,-1041],"Blank Check":[-774,1070],"Super Mario Bros.":[-352,-526],"@Joel Coen":[-171,284],"@Ethan Coen":[-317,251],"@Quentin Tarantino":[44,827],"@Steven Spielberg":[510,282],"@Martin Scorsese":[-538,1226],"@John Hughes":[-363,-9],"@Robert Zemeckis":[-246,-563],"@James Cameron":[1204,-296],"@David Fincher":[-656,142],"@Richard Donner":[-285,284],"@Peter Jackson":[1398,495],"@Ridley Scott":[10,282],"@Harold Ramis":[302,-903],"@John Carpenter":[1688,-130],"@Chris Columbus":[-67,1051],"@Rob Reiner":[662,502],"@George Lucas":[1178,-267],"@Tony Scott":[494,156],"@David Wain":[224,1307],"@John G. Avildsen":[-647,-478],"@Penny Marshall":[-578,614],"@John McTiernan":[-70,-429],"@Paul Verhoeven":[18,1402],"@Stephen Herek":[60,-429],"@John Landis":[1076,-243],"@Michael Bay":[89,-95],"@Ivan Reitman":[1038,-592],"@Tim Burton":[-1481,-207],"@Bryan Singer":[843,-375],"@Jonathan Lynn":[-481,-5],"@Mel Brooks":[-931,874],"@David Zucker":[-112,-20],"@Jerry Zucker":[225,-308],"@Sam Raimi":[-1595,315],"@Barry Sonnenfeld":[-934,-314],"@Michael Lehmann":[-743,-723],"@George P. Cosmatos":[399,-962],"@Ted Kotcheff":[-1165,-479],"@Peter Segal":[-1009,-100],"@Amy Heckerling":[274,1281],"@Doug Liman":[-370,-1033],"@Wes Craven":[-975,-911],"@Jon Turteltaub":[592,829],"@Jay Roach":[1460,31],"@Howard Deutch":[463,-496],"@Joe Dante":[773,757],"@Jan de Bont":[-109,-46],"@Paul Michael Glaser":[416,-1256],"@Joel Schumacher":[-187,-344],"@Paul W. S. Anderson":[1092,348],"@Jason London":[360,449],"@Ben Affleck":[70,-367],"@Parker Posey":[-46,355],"@Rory Cochrane":[845,-265],"@John Goodman":[-408,196],"@Julianne Moore":[122,696],"@Steve Buscemi":[-17,67],"@John Turturro":[-235,417],"@Philip Seymour Hoffman":[64,857],"@John Travolta":[844,-464],"@Samuel L. Jackson":[-16,188],"@Bruce Willis":[247,92],"@Harvey Keitel":[452,844],"@Tim Roth":[342,982],"@Tom Hanks":[-185,315],"@Matt Damon":[83,133],"@Tom Sizemore":[-501,586],"@Edward Burns":[108,915],"@Giovanni Ribisi":[272,825],"@Vin Diesel":[-867,721],"@Robert De Niro":[-380,1236],"@Ray Liotta":[135,942],"@Joe Pesci":[-308,822],"@Emilio Estevez":[134,-1111],"@Judd Nelson":[-418,-859],"@Anthony Michael Hall":[-364,-799],"@Ally Sheedy":[-250,-1253],"@Michael J. Fox":[-9,-1164],"@Christopher Lloyd":[-576,-753],"@Lea Thompson":[120,-1003],"@Crispin Glover":[3,-516],"@Thomas F. Wilson":[-397,-979],"@Arnold Schwarzenegger":[729,-704],"@Linda Hamilton":[1429,-602],"@Joe Morton":[466,-754],"@Brad Pitt":[204,528],"@Diane Kruger":[707,787],"@Ted Levine":[-931,848],"@Mark Wahlberg":[-249,515],"@Burt Reynolds":[796,528],"@John C. Reilly":[359,1009],"@William H. Macy":[117,887],"@Sean Astin":[914,274],"@Corey Feldman":[995,463],"@Martha Plimpton":[428,594],"@Val Kilmer":[-34,126],"@Jon Voight":[-20,382],"@Gwyneth Paltrow":[448,816],"@Kevin Spacey":[334,-543],"@Benicio del Toro":[362,-465],"@Vinnie Jones":[581,388],"@Edward Norton":[-920,273],"@Jared Leto":[-1221,34],"@Jack Nicholson":[-1391,66],"@Elijah Wood":[1492,403],"@Ian McKellen":[1080,320],"@Viggo Mortensen":[1503,367],"@Orlando Bloom":[1497,314],"@Jim Carrey":[-515,176],"@Jeff Daniels":[-240,-3],"@Karen Duffy":[-966,670],"@Alec Baldwin":[-1169,254],"@Sean Bean":[883,634],"@Sigourney Weaver":[871,-320],"@Tom Skerritt":[793,-402],"@Ian Holm":[827,272],"@Harry Dean Stanton":[779,-674],"@Yaphet Kotto":[720,-645],"@Veronica Cartwright":[-145,-73],"@Chevy Chase":[378,298],"@Bill Murray":[-6,-593],"@Karen Allen":[-275,-412],"@Denis Leary":[-626,-892],"@James Earl Jones":[495,-419],"@Michael Biehn":[958,-262],"@Lance Henriksen":[1476,-82],"@Bill Paxton":[618,-194],"@Jamie Lee Curtis":[1468,-374],"@Harrison Ford":[783,-205],"@Elisabeth Shue":[-429,-919],"@Macaulay Culkin":[-767,826],"@Daniel Stern":[-713,1019],"@Catherine O'Hara":[-1001,641],"@John Heard":[-872,693],"@Sam Neill":[-86,639],"@Jeff Goldblum":[-750,798],"@Robert Shaw":[444,-248],"@Ray Walston":[237,468],"@Eileen Brennan":[-666,-292],"@William Fichtner":[-647,-451],"@Keanu Reeves":[-466,-215],"@Laurence Fishburne":[-25,411],"@Joe Pantoliano":[-339,-232],"@River Phoenix":[1293,251],"@Kiefer Sutherland":[323,-727],"@Richard Dreyfuss":[1248,-326],"@Carrie Fisher":[1084,406],"@Christian Slater":[-451,-478],"@Dennis Hopper":[-133,-131],"@Gary Oldman":[143,669],"@Christopher Walken":[-682,-60],"@Paul Rudd":[191,1567],"@Sylvester Stallone":[-181,-503],"@Talia Shire":[-309,222],"@Carl Weathers":[-1069,-302],"@Burgess Meredith":[-790,-651],"@Geena Davis":[-1217,311],"@Lori Petty":[-1162,176],"@John Candy":[-32,158],"@Amy Madigan":[113,749],"@Alan Rickman":[232,496],"@Drew Barrymore":[-789,-315],"@Mary McDonnell":[-1132,405],"@Patrick Swayze":[-299,-475],"@Miguel Ferrer":[-459,1264],"@Robin Wright":[-484,1062],"@Sally Field":[-579,641],"@Adam Sandler":[-906,-101],"@Allen Covert":[-1065,-331],"@Roy Scheider":[1236,-549],"@Matthew Broderick":[-118,-101],"@Alan Ruck":[-236,-101],"@Jeffrey Jones":[-435,-508],"@Jennifer Grey":[-433,-417],"@Alex Winter":[210,-683],"@Russell Crowe":[1174,261],"@Joaquin Phoenix":[525,626],"@Dan Aykroyd":[32,-398],"@Henry Gibson":[1111,460],"@Mel Gibson":[-524,945],"@Danny Glover":[-530,972],"@Gary Busey":[-1125,312],"@Jennifer Aniston":[455,-728],"@Diedrich Bader":[1334,-549],"@Frances McDormand":[-541,205],"@Griffin Dunne":[-136,9],"@Nicolas Cage":[338,-300],"@Holly Hunter":[-835,230],"@William Forsythe":[95,-123],"@Robert Loggia":[-1111,-96],"@Rick Moranis":[127,284],"@Ernie Hudson":[-434,-447],"@Tom Noonan":[112,-685],"@Jude Law":[468,1022],"@Paul Reubens":[-1422,-142],"@Seann William Scott":[-336,1038],"@Jane Lynch":[-99,1204],"@Tia Carrere":[-436,-566],"@Stephen Baldwin":[-59,-458],"@Kevin Pollak":[-62,-685],"@Kevin Costner":[773,76],"@Ralph Macchio":[-109,-536],"@Joss Ackland":[-23,-147],"@Michael Keaton":[-875,-346],"@Winona Ryder":[-1482,-345],"@Kurt Russell":[1372,-402],"@Tim Curry":[-1019,441],"@Brenda Fricker":[-266,572],"@Reese Witherspoon":[-1139,340],"@Chris Klein":[-654,201],"@Gene Wilder":[-1601,419],"@Madeline Kahn":[-1139,440],"@Melinda Dillon":[1677,-244],"@Cary Elwes":[118,777],"@Christopher Guest":[-311,1208],"@Wallace Shawn":[-105,1402],"@Tommy Lee Jones":[-398,-388],"@Robbie Coltrane":[220,1255],"@Maggie Smith":[-50,1022],"@Willem Dafoe":[-1509,67],"@Robin Williams":[-175,940],"@Pierce Brosnan":[106,1208],"@Brendan Fraser":[261,298],"@Alicia Silverstone":[339,1228],"@Bob Hoskins":[-275,-385],"@Steve Martin":[117,-307],"@Will Patton":[975,-8],"@Donald Faison":[611,856],"@Heath Ledger":[1095,-298],"@Rufus Sewell":[750,502],"@Mark Addy":[928,-63],"@Michael McKean":[-773,202],"@Kevin Bacon":[-92,-922],"@Julie Hagerty":[-524,-65],"@Leslie Nielsen":[-186,345],"@Liv Tyler":[757,-28],"@Ethan Embry":[964,-37],"@Tina Majorino":[944,-291],"@Will Smith":[-1013,-10],"@Linda Fiorentino":[-1023,18],"@Vincent D'Onofrio":[-233,-771],"@James Remar":[-1268,480],"@David Patrick Kelly":[-1442,11],"@Demi Moore":[204,-835],"@Whoopi Goldberg":[789,-875],"@Mary Steenburgen":[471,-220],"@Courteney Cox":[-1168,-359],"@Tone Loc":[-849,856],"@Shannen Doherty":[-952,-745],"@Sam Elliott":[2,-544],"@Powers Boothe":[574,-883],"@Eugene Levy":[-527,919],"@Brian Cox":[-182,-1386],"@Tim Robbins":[547,-1165],"@Fred Ward":[350,-1282],"@Brian Dennehy":[-1199,-170],"@Lane Smith":[1150,-610],"@Joshua Jackson":[672,-934],"@Chris Farley":[-1107,-543],"@Rob Lowe":[-417,-889],"@Charlie Sheen":[-270,-1021],"@Jack Palance":[-560,-918],"@Kevin McCarthy":[782,814],"@Gina Gershon":[93,-1192],"@Judge Reinhold":[783,726],"@Phoebe Cates":[565,1022],"@Bill Pullman":[-704,1047],"@Randy Quaid":[-491,738],"@Chris Cooper":[359,-1230],"@Julia Stiles":[443,-1139],"@Victor Wong":[1384,101],"@Raul Julia":[-1065,-801],"@Carol Kane":[-1204,-541],"@Owen Wilson":[661,-15],"@Chris Tucker":[885,662],"@Wesley Snipes":[-703,-992],"@Robert Duvall":[552,801],"@Timothy Olyphant":[-534,-594],"@Tim Allen":[981,672],"@Wendy Crewson":[775,696],"@Eric Lloyd":[1059,677],"@David Krumholtz":[1189,53],"@John Cusack":[489,102],"@Tom Cruise":[347,-518],"@Meg Ryan":[942,241],"@Jesse Ventura":[1,-877],"@Andie MacDowell":[-384,-1007],"@Brian Doyle-Murray":[-531,-947],"@Ice Cube":[1262,477],"@Annette Bening":[542,-1139],"@Thora Birch":[840,-292],"@Wes Bentley":[28,-685],"@Mena Suvari":[184,-96],"@Allison Janney":[890,-839],"@John Malkovich":[468,252],"@Colm Meaney":[1260,-21],"@Danny Trejo":[1074,-12],"@Mike Myers":[-69,-347],"@Seth Green":[1381,32],"@Paul Walker":[-1503,261],"@Dana Carvey":[-1264,-568],"@Famke Janssen":[348,476],"@Jean-Claude Van Damme":[-1097,-775],"@Sarah Jessica Parker":[-17,40],"@Michael Gough":[-1208,-142],"@Martin Short":[1220,288],"@Pauly Shore":[356,-488],"@Dianne Wiest":[492,74],"@Sinbad":[-1081,-571],"@Jack Black":[1015,269],"@Sandra Bullock":[-620,-723],"@Kenan Thompson":[787,-931],"@Donal Logue":[-800,-756],"@Kim Basinger":[-1383,-230],"@Glenn Close":[237,1037],"@Joely Richardson":[128,723],"@Dan Hedaya":[-290,1092],"@Breckin Meyer":[-294,1066],"@Amy Smart":[-692,-90],"@C. Thomas Howell":[239,-1082],"@Joey Lauren Adams":[-629,-697],"@Nicole Kidman":[-287,365],"@Michael Rooker":[765,1],"@Eva Mendes":[-1006,44],"@Kelly Lynch":[102,-1141],"@Devon Sawa":[-479,1088],"@Ali Larter":[-1160,467],"@Yeardley Smith":[-263,-1049],"@Anthony LaPaglia":[781,50],"@Robin Tunney":[1363,-372],"@Andrew McCarthy":[-620,-1020],"@Thomas Ian Nicholas":[-489,1006],"@Jami Gertz":[476,41],"@Robert Picardo":[890,689],"@Ernie Reyes Jr.":[213,1228],"@Pat Hingle":[-894,-772],"@John Lithgow":[1400,-184],"@Rob Schneider":[-514,448],"@David Suchet":[1468,-26],"@Kylie Minogue":[-848,-730],"@Nicholas Pileggi":[-302,1436],"@Bob Gale":[-107,-1134],"@Fran Walsh":[1390,547],"@Philippa Boyens":[1353,461],"@Michael Crichton":[-281,195],"@David Koepp":[-1017,-40],"@David S. Ward":[-440,-754],"@Lowell Ganz":[-281,339],"@Babaloo Mandel":[-288,312],"@Jeb Stuart":[-91,-564],"@Steven E. de Souza":[-213,-798],"@Edward Neumeier":[-47,1428],"@Tim Herlihy":[-1419,-40],"@Carl Gottlieb":[561,-687],"@Ed Solomon":[-342,-772],"@Shane Black":[-210,-32],"@Jeffrey Boam":[428,504],"@Warren Skaaren":[-1487,-270],"@Gloria Katz":[664,-987],"@Willard Huyck":[669,-960],"@William Goldman":[-195,1178],"@David Twohy":[289,-755],"@Todd W. Langen":[688,1016],"@Jonathan Hensleigh":[498,-449],"@Daniel Waters":[-1177,-451],"@Robert Mark Kamen":[-30,96],"@Steven Brill":[790,-903],"@Bonnie Turner":[-1177,-387],"@Terry Turner":[-1165,-572],"@Tony Gilroy":[129,-1368],"@Scott Rosenberg":[1119,292],"@Jim Cash":[1042,-39],"@Jack Epps Jr.":[1172,25],"@W. Peter Iliff":[-1427,-83],"@Shawn Schepps":[1070,-272],"@Tommy Swerdlow":[-216,1152],"@Michael Goldberg":[-156,1125],"@Mark Steven Johnson":[-249,-534],"@Michael France":[1326,-575],"@Carter Burwell":[106,100],"@John Williams":[82,496],"@Alan Silvestri":[-650,-666],"@Brad Fiedel":[1325,-603],"@Howard Shore":[-159,385],"@Elliot Goldenthal":[-671,172],"@Jerry Goldsmith":[568,597],"@David Newman":[-431,-829],"@James Horner":[1080,376],"@Hans Zimmer":[122,462],"@Craig Wedren":[317,1307],"@Bill Conti":[-898,-132],"@Ira Newborn":[-537,-35],"@Michael Kamen":[-10,10],"@Michael Andrews":[-252,445],"@Basil Poledouris":[448,533],"@Teddy Castellucci":[-1026,-68],"@Eric Clapton":[-602,998],"@Elmer Bernstein":[299,-80],"@Danny Elfman":[-1315,-173],"@John Ottman":[711,-436],"@Randy Edelman":[661,-407],"@John Morris":[-1133,376],"@James Newton Howard":[-134,-743],"@Bruce Broughton":[788,-236],"@Miles Goodman":[294,-1055],"@Trevor Rabin":[609,170],"@John Du Prez":[736,1044],"@J. Peter Robinson":[-25,-625],"@Thomas Newman":[682,-736],"@John Powell":[155,-1283],"@David Arnold":[-1066,799],"@Eric Serra":[602,883],"@BT":[-1354,-203],"@Harold Faltermeyer":[1045,-620],"@John Debney":[463,455],"@Mark Isham":[-1392,-397],"@Mark Mancina":[83,-152],"@George S. Clinton":[1414,129],"@Christopher Young":[-337,-204],"@Richard Gibbs":[1123,-703],"@Graeme Revell":[-1392,-578],"@J.A.C. Redford":[777,-957],"@David Kitay":[-96,1178],"@Roger Deakins":[-369,456],"@Andrzej Sekula":[-244,544],"@Janusz Kaminski":[-109,1151],"@Michael Ballhaus":[-323,1007],"@Thomas Del Ruth":[406,-933],"@Dean Cundey":[342,-334],"@Adam Greenberg":[1283,-187],"@Jeff Cronenweth":[-1385,38],"@Robert Richardson":[8,1375],"@Tak Fujimoto":[-428,251],"@Nick McLean":[50,1022],"@Andrew Lesnie":[1435,429],"@Mark Irwin":[-279,-442],"@Anthony B. Richmond":[-756,-697],"@Adrian Biddle":[439,565],"@Julio Macat":[-501,556],"@Bill Pope":[-482,1034],"@Jeffrey L. Kimball":[187,-497],"@James Crabe":[-975,-511],"@Jost Vacano":[27,1455],"@Don Burgess":[-1408,262],"@Tim Suhrstedt":[6,-656],"@Bill Butler":[1260,-55],"@Stephen Goldblatt":[-718,409],"@Robert Paynter":[663,-671],"@John Schwartzman":[52,-337],"@Laszlo Kovacs":[562,-713],"@Arthur Albert":[-873,665],"@Dean Semler":[-115,-656],"@John Seale":[337,1255],"@Victor J. Kemper":[-1195,-418],"@Newton Thomas Sigel":[863,-349],"@Peter Deming":[861,-28],"@Thomas E. Ackerman":[-1142,284],"@James Glennon":[-1130,34],"@Joseph Biroc":[-870,638],"@Michael Chapman":[-6,-487],"@Donald McAlpine":[-199,223],"@Donald Peterman":[-1122,-513],"@Andrew Laszlo":[-504,526],"@Francis Kenny":[-1286,-450],"@William A. Fraker":[-111,-771],"@Oliver Wood":[200,-1341],"@Matthew F. Leonetti":[-256,485],"@Walt Lloyd":[1349,160],"@Jack N. Green":[-196,253],"@Theo van de Sande":[-1068,-748],"@Hiro Narita":[1068,434],"@Ric Waite":[380,-990],"@Robert Brinkmann":[875,23],"@Alex Thomson":[64,-458],"@Victor Hammer":[485,13],"@Phedon Papamichael":[-417,223],"@John Hora":[846,869],"@Russell Boyd":[-1047,71],"@Richard Crudo":[8,458],"@Stephen H. Burum":[-110,-1359]};
+function placeAll(){
+  const pins = Object.assign({}, BAKED || {}, saved.home), P = N.concat(G), key = p => p.all ? "@" + p.name : p.m.t;
+  if (BAKED && P.every(p => pins[key(p)])){
+    for (const p of P){ const h = pins[key(p)]; p.x = h[0]; p.y = h[1]; p.home = {x:h[0], y:h[1]}; p.ring = null; }
+  } else runLayout(pins);
+}
+
+/* ---------- VIEW ---------- */
+function resize(){
+  poke();
+  const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = lab.width = Math.round(r.width*dpr); canvas.height = lab.height = Math.round(r.height*dpr);
+}
+function fit(){
+  const r = stage.getBoundingClientRect();
+  let x0=1e9, x1=-1e9, y0=1e9, y1=-1e9;
+  for (const n of N.concat(G.filter(g => g.on))){ x0=Math.min(x0,n.home.x); x1=Math.max(x1,n.home.x); y0=Math.min(y0,n.home.y); y1=Math.max(y1,n.home.y); }
+  const padX = 70, padTop = 100, padBot = 70;
+  const k = Math.min((r.width-2*padX)/Math.max(1,x1-x0), (r.height-padTop-padBot)/Math.max(1,y1-y0), 1.25);
+  view.k = k; view.tx = r.width/2 - (x0+x1)/2*k; view.ty = padTop + (r.height-padTop-padBot)/2 - (y0+y1)/2*k;
+}
+const FONT = '"Barlow Condensed","Arial Narrow",Arial,sans-serif', HUB_PX = 19, HUB_H = 30, TAG_PX = 15, TAG_H = 24;
+const edgeOut = (dx, dy, len, hw, hh) => Math.min(dx ? hw/Math.abs(dx) : 1e9, dy ? hh/Math.abs(dy) : 1e9) * len;
+/* Name tags sit on an inner ring around the picked movie, each pointing toward the
+   movies it leads to. The busiest names get first pick of a spot; each later one takes
+   the nearest spot on the ring that does not overlap. A tag you have dragged stays put. */
+const HX = 330, HY = 214;
+function stepHubs(){
+  const S = N[selected], sx = S.x+S.dx, sy = S.y+S.dy;
+  const hit = (a, b) => (a.w+b.w)/2 + 10 - Math.abs(b.gx-a.gx) > 0 && (a.hh+b.hh)/2 + 6 - Math.abs(b.gy-a.gy) > 0;
+  tctx.save(); tctx.setTransform(1,0,0,1,0,0);
+  for (const h of hubs){ tctx.font = `600 ${h.px}px ${FONT}`; h.w = tctx.measureText(h.label).width + h.px*1.1; }
+  tctx.restore();
+  const placed = [];
+  for (const h of hubs){
+    if (h.user){ h.gx = h.user[0]; h.gy = h.user[1]; placed.push(h); continue; }
+    let ux = 0, uy = 0;
+    for (const id of h.movies){ const m = N[id], dx = m.x+m.dx-sx, dy = m.y+m.dy-sy, len = Math.hypot(dx,dy) || 1; ux += dx/len; uy += dy/len; }
+    if (Math.hypot(ux, uy) < .35){ const m = N[h.movies[0]]; ux = m.x+m.dx-sx; uy = m.y+m.dy-sy; }
+    const ideal = Math.atan2(HX*uy, HY*ux);
+    let done = false;
+    for (let k=0; k<=64 && !done; k++) for (const sg of (k ? [1,-1] : [1])){
+      const t = ideal + sg*k*.05; h.gx = Math.cos(t)*HX; h.gy = Math.sin(t)*HY;
+      if (!placed.some(o => hit(h, o))){ done = true; break; }
+    }
+    if (!done){ h.gx = Math.cos(ideal)*HX; h.gy = Math.sin(ideal)*HY; }
+    placed.push(h);
+  }
+  for (const h of hubs){                                     // glide to the chosen spot
+    if (!h.init || h.user){ h.ox = h.gx; h.oy = h.gy; h.init = true; }
+    else { h.ox += (h.gx-h.ox)*.2; h.oy += (h.gy-h.oy)*.2; }
+    h.x = sx + h.ox; h.y = sy + h.oy;
+  }
+}
+function draw(t){
+  const dpr = window.devicePixelRatio || 1;
+  world.style.transform = `translate(${view.tx}px,${view.ty}px) scale(${view.k})`;
+  for (const n of N){
+    n.dx = reduceMotion ? 0 : Math.sin(t*0.0005 + n.ph)*3.5;
+    n.dy = reduceMotion ? 0 : Math.cos(t*0.0004 + n.ph*1.7)*3.5;
+    n.el.style.transform = `translate(${(n.x+n.dx).toFixed(1)}px,${(n.y+n.dy).toFixed(1)}px)`;
+  }
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.tx,dpr*view.ty);
+  tctx.setTransform(1,0,0,1,0,0); tctx.clearRect(0,0,lab.width,lab.height);
+  tctx.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.tx,dpr*view.ty);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  /* the whole web, kept quiet: faint branches from each shared name to its movies.
+     Point at a poster or a name and its own branches light up. */
+  const lit = g => g === hoverG || (hoverN !== null && g.movies.includes(hoverN));
+  if (!focused()){
+    const base = query ? .08 : Math.max(.13, Math.min(.3, view.k*.38));
+    for (const pass of [0, 1]) for (const g of G){
+      if (!g.on || lit(g) !== !!pass) continue;
+      ctx.globalAlpha = pass ? .95 : base; ctx.strokeStyle = g.T.color;
+      ctx.lineWidth = pass ? Math.max(2.5, 2.2/view.k) : Math.max(1.2, 1.2/view.k);
+      for (const id of g.movies){ const m = N[id]; if (m.off) continue; ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(m.x+m.dx, m.y+m.dy); ctx.stroke(); }
+    }
+  }
+  tctx.textAlign = "center"; tctx.textBaseline = "middle";
+  if (selTag){
+    /* picked name: the name in the middle, a branch out to each of its movies */
+    const g = selTag;
+    ctx.globalAlpha = .92; ctx.strokeStyle = g.T.color; ctx.lineWidth = 4;
+    for (const id of g.movies){ const m = N[id]; ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(m.x+m.dx, m.y+m.dy); ctx.stroke(); }
+    tctx.font = `700 40px ${FONT}`; tctx.globalAlpha = 1;
+    const w = tctx.measureText(g.name).width + 46, h = 62;
+    tctx.fillStyle = "#091627"; tctx.strokeStyle = g.T.color; tctx.lineWidth = 2.5;
+    tctx.beginPath(); tctx.roundRect(g.x-w/2, g.y-h/2, w, h, 8); tctx.fill(); tctx.stroke();
+    tctx.fillStyle = g.T.color; tctx.fillText(g.name, g.x, g.y + 1.5);
+    return;
+  }
+  if (selected !== null){
+    /* picked movie: trunk to each shared name (thicker the more movies it leads to), then a branch to each movie */
+    stepHubs();
+    const S = N[selected], sx = S.x+S.dx, sy = S.y+S.dy;
+    ctx.globalAlpha = .92;
+    for (const h of hubs){
+      ctx.strokeStyle = h.color;
+      ctx.lineWidth = Math.min(15, 2.5 + (h.movies.length-1)*3);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(h.x, h.y); ctx.stroke();
+      ctx.lineWidth = 2;
+      for (const id of h.movies){ const m = N[id]; ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(m.x+m.dx, m.y+m.dy); ctx.stroke(); }
+    }
+    tctx.textAlign = "center"; tctx.textBaseline = "middle"; tctx.globalAlpha = 1;
+    for (const h of hubs){
+      tctx.font = `600 ${h.px}px ${FONT}`;
+      tctx.fillStyle = "#091627"; tctx.strokeStyle = h.color; tctx.lineWidth = 1.8;
+      tctx.beginPath(); tctx.roundRect(h.x-h.w/2, h.y-h.hh/2, h.w, h.hh, 6); tctx.fill(); tctx.stroke();
+      tctx.fillStyle = h.color; tctx.fillText(h.label, h.x, h.y + 1);
+    }
+    return;
+  }
+  /* names: bigger and bolder the more movies they link. Small ones only show up close. */
+  let font = 0;
+  const anyLit = hoverG !== null || hoverN !== null;
+  for (const pass of [0, 1]) for (const g of TAGS_BY_SIZE){
+    if (!g.on || lit(g) !== !!pass) continue;
+    if (font !== g.px){ font = g.px; tctx.font = `600 ${g.px}px ${FONT}`; }
+    if (!g.w) g.w = tctx.measureText(g.name).width + g.px*1.1;
+    const near = pass ? 1 : Math.max(0, Math.min(1, (g.px*view.k - 5) / 1.6));
+    if (near < .02) continue;
+    const weight = Math.min(1, (g.all.length - 2) / 6);
+    const a = pass ? 1 : near * (query ? .25 : (genre && g.movies.every(i => N[i].off)) ? .08 : (.5 + .45*weight) * (anyLit ? .45 : 1));
+    tctx.globalAlpha = a * (pass ? 1 : .85); tctx.fillStyle = "#0c1c30";
+    tctx.beginPath(); tctx.roundRect(g.x-g.w/2, g.y-g.h/2, g.w, g.h, 5); tctx.fill();
+    tctx.globalAlpha = a * (pass ? 1 : .55); tctx.strokeStyle = g.T.color; tctx.lineWidth = pass ? 2 : 1; tctx.stroke();
+    tctx.globalAlpha = a; tctx.fillStyle = g.T.color; tctx.fillText(g.name, g.x, g.y + 1);
+  }
+  tctx.globalAlpha = 1;
+}
+/* which name, if any, is under a point in the web */
+function nameAt(clientX, clientY){
+  const r = stage.getBoundingClientRect(), wx = (clientX-r.left-view.tx)/view.k, wy = (clientY-r.top-view.ty)/view.k;
+  const over = (h, ht) => Math.abs(wx-h.x) < h.w/2 && Math.abs(wy-h.y) < ht/2;
+  if (selected !== null){ const h = hubs.find(h => over(h, h.hh)); return h ? {name:h.label, k:h.T.k, hub:h} : null; }
+  if (selTag) return null;
+  let g = null;
+  for (let i=TAGS_BY_SIZE.length-1; i>=0 && !g; i--){ const t = TAGS_BY_SIZE[i]; if (t.on && t.px*view.k > 5.5 && over(t, t.h + 4)) g = t; }
+  return g ? {name:g.name, k:g.T.k, tag:g} : null;
+}
+
+/* ---------- WHO IS THIS: a short bio from Wikipedia ---------- */
+const ROLE = {d:"film director", cast:"actor", wr:"screenwriter", m:"film composer", dp:"cinematographer", ed:"film editor", fr:"film series"};
+const bioCache = new Map(); let bioFor = "";
+const bio = document.getElementById("bio");
+async function fetchBio(name, k){
+  const key = name + "|" + k;
+  if (bioCache.has(key)) return bioCache.get(key);
+  try {
+    const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=1&gsrsearch="
+      + encodeURIComponent(name + " " + (ROLE[k] || "film"))
+      + "&prop=extracts%7Cpageimages%7Cinfo&exintro=1&explaintext=1&exsentences=3&piprop=thumbnail&pithumbsize=200&pilicense=any&inprop=url";
+    const j = await (await fetch(url)).json();
+    const pg = j.query && j.query.pages && Object.values(j.query.pages)[0];
+    const d = pg ? {title:pg.title, text:(pg.extract || "").trim(), img:pg.thumbnail && pg.thumbnail.source, url:pg.fullurl} : {none:true};
+    bioCache.set(key, d); return d;
+  } catch(e){ return {err:true}; }
+}
+function bioBody(d){
+  if (!d) return `<p class="quiet">Looking this up on Wikipedia.</p>`;
+  if (d.err) return `<p class="quiet">Wikipedia could not be reached. Check your internet connection and click the name again.</p>`;
+  if (d.none || !d.text) return `<p class="quiet">Wikipedia has no short entry for this name.</p>`;
+  return (d.img ? `<img src="${esc(d.img)}" alt="">` : "") + `<p>${esc(d.text)}</p>`
+    + `<p class="src">From the Wikipedia article “${esc(d.title)}”. <a href="${esc(d.url)}" target="_blank" rel="noopener">Read the full article</a></p>`;
+}
+function paintBio(name, k, d){
+  const T = TYPE[k] || TYPES[0];
+  bio.innerHTML = `<button type="button" class="x" data-close aria-label="Close">×</button>
+    <p class="role"><i style="--c:${T.color}"></i>${esc(T.name)}</p><h4>${esc(name)}</h4>${bioBody(d)}`;
+  bio.hidden = false;
+}
+async function showBio(name, k){
+  const key = name + "|" + k; bioFor = key;
+  paintBio(name, k, bioCache.get(key));
+  if (bioCache.has(key)) return;
+  const d = await fetchBio(name, k);
+  if (bioFor === key) paintBio(name, k, d);
+}
+/* clicking a name: a shared name becomes the center of the web; any other name gets the pop-up card */
+function pickName(name, k){
+  const g = G.find(g => g.on && g.name === name);
+  if (g) selectTag(g); else showBio(name, k);
+}
+function closeBio(){ bio.hidden = true; bioFor = ""; }
+bio.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeBio(); });
+for (const t of ["pointerdown","dblclick","wheel"]) bio.addEventListener(t, e => e.stopPropagation());
+
+function frame(t){
+  const ease = (p, g) => { const dx = g.x-p.x, dy = g.y-p.y; if (Math.abs(dx) + Math.abs(dy) < .06){ p.x = g.x; p.y = g.y; } else { p.x += dx*.18; p.y += dy*.18; } };
+  for (const g of G) if (!g.drag) ease(g, g.home);
+  for (const n of N){                                        // every poster glides to where it belongs right now
+    if (n.drag) continue;
+    const g = (focused() && n.ring) || n.home;
+    ease(n, g);
+  }
+  if (viewTo){
+    view.k += (viewTo.k - view.k)*.16; view.tx += (viewTo.tx - view.tx)*.16; view.ty += (viewTo.ty - view.ty)*.16;
+    if (Math.abs(viewTo.tx - view.tx) + Math.abs(viewTo.ty - view.ty) < .5 && Math.abs(viewTo.k - view.k) < .002) viewTo = null;
+  }
+  let sum = view.k*1e5 + view.tx*13 + view.ty*7;
+  for (const n of N) sum += n.x*1.3 + n.y*.7;
+  for (const g of G) sum += g.x*.9 + g.y*1.1;
+  if (focused() || needs > 0 || sum !== lastSum){ draw(t); lastSum = sum; needs--; }
+  requestAnimationFrame(frame);
+}
+
+
+/* ---------- SELECTION + PANEL ---------- */
+/* When a movie is picked, its relatives fan out around it. Every shared name
+   appears once: one trunk from the movie to the name, then a branch to each
+   movie that shares it. */
+let ringKey = "", viewTo = null, savedView = null, hubs = [];
+function bestOrder(ids, groups){
+  const n = ids.length; if (n <= 2) return ids.slice();
+  const multi = groups.filter(g => g.movies.length > 1);
+  if (!multi.length) return ids.slice();
+  const step = 2*Math.PI/n, cs = [], sn = [];
+  for (let i=0; i<n; i++){ cs.push(Math.cos(i*step)); sn.push(Math.sin(i*step)); }
+  const slot = new Map();
+  const cost = order => {
+    order.forEach((id,i) => slot.set(id, i));
+    let c = 0;
+    for (const g of multi){ let x = 0, y = 0; for (const id of g.movies){ const s = slot.get(id); x += cs[s]; y += sn[s]; } c += g.movies.length - Math.hypot(x, y); }
+    return c;
+  };
+  if (n > 8){                                    // too many to try every order: group by first shared name
+    const first = id => multi.findIndex(g => g.movies.includes(id));
+    return ids.slice().sort((a,b) => (first(a) < 0 ? 99 : first(a)) - (first(b) < 0 ? 99 : first(b)));
+  }
+  let best = ids.slice(), bestC = cost(best);
+  const rest = ids.slice(1), cur = [ids[0]];
+  (function walk(pool){
+    if (!pool.length){ const c = cost(cur); if (c < bestC - 1e-9){ bestC = c; best = cur.slice(); } return; }
+    for (let i=0; i<pool.length; i++){ cur.push(pool[i]); walk(pool.slice(0,i).concat(pool.slice(i+1))); cur.pop(); }
+  })(rest);
+  return best;
+}
+function center(){                                           // what the fanned-out movies are arranged around
+  if (selected !== null){ const S = N[selected]; return {key:S.m.t, x:S.home.x, y:S.home.y}; }
+  return selTag ? {key:"@" + selTag.name, x:selTag.home.x, y:selTag.home.y} : null;
+}
+function arrangeTag(){
+  const g = selTag, C = center(), ids = g.movies.slice(), n = ids.length;
+  const RY = 330 + Math.max(0, n-6)*16, RX = RY*1.45, step = 2*Math.PI/n;
+  ids.sort((a,b) => Math.atan2(N[a].home.y-C.y, N[a].home.x-C.x) - Math.atan2(N[b].home.y-C.y, N[b].home.x-C.x));
+  let sx = 0, sy = 0;
+  ids.forEach((id,i) => { const a = Math.atan2(N[id].home.y-C.y, N[id].home.x-C.x) - i*step; sx += Math.cos(a); sy += Math.sin(a); });
+  const a0 = n === 2 ? Math.PI : Math.atan2(sy, sx);
+  ids.forEach((id,i) => {
+    const o = saved.ring[C.key + "|" + N[id].m.t];
+    N[id].ring = o ? {x:C.x + o[0], y:C.y + o[1]} : {x:C.x + Math.cos(a0 + i*step)*RX, y:C.y + Math.sin(a0 + i*step)*RY};
+  });
+  const r = stage.getBoundingClientRect();
+  const kt = Math.max(.4, Math.min(1.25, (r.height-120)/(2*(RY+150)), (r.width-60)/(2*(RX+120))));
+  viewTo = {k:kt, tx:r.width/2 - C.x*kt, ty:r.height/2 + 8 - C.y*kt};
+}
+function arrange(){
+  const types = TYPES.map(T => +T.on).join("");
+  const key = selected !== null ? "m" + selected + ":" + types : selTag ? "t" + selTag.name + ":" + types : "";
+  if (key === ringKey) return;
+  ringKey = key; N.forEach(n => n.ring = null); hubs = [];
+  if (!focused()){ if (savedView){ viewTo = savedView; savedView = null; } return; }
+  if (!savedView) savedView = {k:view.k, tx:view.tx, ty:view.ty};
+  if (selTag) return arrangeTag();
+  const S = N[selected]; S.ring = {x:S.home.x, y:S.home.y};
+  const list = nbrs[selected].map(e => ({e, n: N[e.a === selected ? e.b : e.a]}));
+  // one tag per shared name
+  const byName = new Map();
+  for (const o of list) for (const T of o.e.kinds) for (const v of o.e.p.r[T.k]){
+    const g = byName.get(v) || byName.set(v, {name:v, T, movies:new Set()}).get(v);
+    g.movies.add(o.n.i); if (TYPES.indexOf(T) < TYPES.indexOf(g.T)) g.T = T;
+  }
+  hubs = [...byName.values()].map(g => ({
+    label: g.name, T: g.T, color: g.T.color, movies: [...g.movies], x:0, y:0, w:0, init:false
+  })).sort((a,b) => b.movies.length - a.movies.length);
+  for (const h of hubs){
+    h.user = (saved.hub || {})[S.m.t + "|" + h.label] || null;
+    const g = G.find(g => g.name === h.label);
+    h.px = Math.min(38, 20 + 5*Math.sqrt(Math.max(0, (g ? g.all.length : h.movies.length + 1) - 2)));   // more movies, bigger name
+    h.hh = h.px + 12;
+    if (g && !h.user){ h.ox = g.x - S.x; h.oy = g.y - S.y; h.init = true; }
+  }
+  const n = list.length;
+  const RY = 380 + Math.max(0, n-6)*16, RX = RY*1.45;
+  if (n){
+    const order = bestOrder(list.map(o => o.n.i), hubs), step = 2*Math.PI/n;
+    let sx = 0, sy = 0;
+    order.forEach((id,i) => { const a = Math.atan2(N[id].home.y - S.home.y, N[id].home.x - S.home.x) - i*step; sx += Math.cos(a); sy += Math.sin(a); });
+    let a0 = Math.atan2(sy, sx); if (n === 1) a0 = 0; else if (n === 2) a0 = Math.PI;
+    order.forEach((id,i) => {
+      const o = saved.ring[S.m.t + "|" + N[id].m.t];
+      N[id].ring = o ? {x:S.home.x + o[0], y:S.home.y + o[1]}
+                     : {x:S.home.x + Math.cos(a0 + i*step)*RX, y:S.home.y + Math.sin(a0 + i*step)*RY};
+    });
+  }
+  const r = stage.getBoundingClientRect();
+  const kt = Math.max(.4, Math.min(1.15, (r.height-120)/(2*(RY+150)), (r.width-60)/(2*(RX+120))));
+  viewTo = {k:kt, tx:r.width/2 - S.home.x*kt, ty:r.height/2 + 8 - S.home.y*kt};
+}
+function paintNodes(){
+  poke();
+  arrange();
+  const lit = new Set();
+  if (selected !== null){ lit.add(selected); for (const e of nbrs[selected]) lit.add(e.a === selected ? e.b : e.a); }
+  else if (selTag) selTag.movies.forEach(i => lit.add(i));
+  const q = query.trim().toLowerCase(), f = focused();
+  const filtered = TYPES.some(T => !T.on);
+  N.forEach(n => {
+    n.off = !!genre && !n.m.g.includes(genre);
+    n.el.classList.toggle("quiet", !f && !q && ((filtered && !n.deg) || n.off));
+    n.el.classList.toggle("sel", n.i === selected);
+    n.el.classList.toggle("lit", f && n.i !== selected && lit.has(n.i) || (!f && !!q && n.m.t.toLowerCase().includes(q)));
+    n.el.classList.toggle("dim", f ? !lit.has(n.i) : (!!q && !n.m.t.toLowerCase().includes(q)));
+  });
+}
+const trail = [];                                            // where you have been, most recent last
+function remember(next){
+  const here = selected !== null ? {m:selected} : selTag ? {g:selTag} : null;
+  if (here && !(here.m === next.m && here.g === next.g)) trail.push(here);
+}
+function select(i, back){ if (!back) remember({m:i}); selected = i; selTag = null; closeBio(); paintNodes(); renderPanel(); }
+function selectTag(g, back){ if (!back) remember({g}); selTag = g; selected = null; closeBio(); paintNodes(); renderPanel(); }
+function clearFocus(){ trail.length = 0; selected = null; selTag = null; paintNodes(); renderPanel(); }
+function goBack(){
+  let p = trail.pop();
+  while (p && p.g && !p.g.on) p = trail.pop();               // skip names hidden by a filter since then
+  if (!p) return clearFocus();
+  p.g ? selectTag(p.g, true) : select(p.m, true);
+}
+function backBar(){
+  const p = trail[trail.length-1], name = p ? (p.g ? p.g.name : SHELF[p.m].t) : "";
+  return `<div class="crumbs">${p ? `<button class="back" data-back>Back to ${esc(name)}</button>` : ""}<button class="back" data-clear>${p ? "All movies" : "Back to all movies"}</button></div>`;
+}
+const who = (name, k) => `<button type="button" class="who" data-who="${esc(name)}" data-k="${k}">${esc(name)}</button>`;
+function row(label, list, k){ return list && list.length ? `<div><dt>${label}</dt><dd>${list.map(v => k ? who(v, k) : esc(v)).join(", ")}</dd></div>` : ""; }
+function renderTagPanel(){
+  const g = selTag, roles = TYPES.filter(T => T.on && g.by[T.k]);
+  const key = g.name + "|" + g.T.k;
+  const list = g.movies.slice().sort((a,b) => (SHELF[a].y||0) - (SHELF[b].y||0));
+  panel.innerHTML = `${backBar()}
+    <p class="role">${roles.map(T => `<span><i style="--c:${T.color}"></i>${T.name}</span>`).join("")}</p>
+    <h2>${esc(g.name)}</h2>
+    <div class="pbio" id="pbio">${bioBody(bioCache.get(key))}</div>
+    <p class="avg">Average score ${rater === "all" ? "overall" : "from " + RNAME[rater]}: <b>${fmtScore(list.reduce((a,i) => a + SHELF[i].r[rater], 0) / list.length)}</b></p>
+    <h3>${list.length} movies rated on the show</h3>
+    <ul class="links">${list.map(i => { const m = SHELF[i];
+      const as = TYPES.filter(T => valuesFor(m, T.k).includes(g.name)).map(T => `<li><i style="--c:${T.color}"></i><span>${T.name}</span></li>`).join("");
+      return `<li><button class="go" data-go="${i}">${esc(m.t)}${m.y ? `<span>${m.y}</span>` : ""}</button><ul class="why">${as}<li><i style="--c:#d9a441"></i><span>${RNAME[rater]} score ${fmtScore(m.r[rater])}</span></li></ul></li>`; }).join("")}</ul>`;
+  panel.scrollTop = 0;
+  if (!bioCache.has(key)) fetchBio(g.name, g.T.k).then(d => { const el = document.getElementById("pbio"); if (selTag === g && el) el.innerHTML = bioBody(d); });
+}
+function scoreRows(m){
+  return `<div class="scores">` + [["all","Overall"],["aj","AJ"],["mike","Mike"],["sean","Sean"]].map(([k,l]) =>
+    `<div class="${k === rater ? "on" : ""}"><span>${l}</span><i><b style="width:${(m.r[k]*10).toFixed(0)}%"></b></i><em>${fmtScore(m.r[k])}</em></div>`).join("") + `</div>`;
+}
+/* who shows up most, by role: how many of the show's movies, and how those movies scored */
+let panelTab = "movies", posterMiss = null;
+function featured(){
+  const label = {d:"Directors", cast:"Cast", wr:"Writers", m:"Composers", dp:"Cinematographers"};
+  return `<p class="note">Counted by movies rated on the show${genre ? " in " + esc(genre) : ""}. The average is ${rater === "all" ? "the overall score" : RNAME[rater] + "'s score"} across those movies.</p>` + TYPES.map(T => {
+    const rows = G.filter(g => g.by[T.k]).map(g => { const ms = g.by[T.k].filter(i => !N[i].off); return {g, n:ms.length, avg:ms.reduce((a,i) => a + SHELF[i].r[rater], 0) / (ms.length || 1)}; })
+      .filter(r => r.n > 1).sort((a,b) => b.n - a.n || b.avg - a.avg).slice(0, 8);
+    if (!rows.length) return "";
+    return `<h3><i class="dot" style="--c:${T.color}"></i>${label[T.k] || T.name}</h3><ul class="top feat">` + rows.map(r =>
+      `<li>${who(r.g.name, T.k)}<span class="n">${r.n} <small>avg ${r.avg.toFixed(1)}</small></span></li>`).join("") + `</ul>`;
+  }).join("");
+}
+/* which movies link to the most other movies: by any link, then by each kind of link */
+function connected(){
+  const label = {d:"By director", cast:"By cast", wr:"By writer", m:"By composer", dp:"By cinematographer"};
+  const tally = test => { const c = new Map();
+    for (const p of PAIRS.values()){ if (N[p.a].off || N[p.b].off || !test(p)) continue; c.set(p.a, (c.get(p.a) || 0) + 1); c.set(p.b, (c.get(p.b) || 0) + 1); }
+    return [...c].sort((a,b) => b[1] - a[1] || scoreOf(N[b[0]]) - scoreOf(N[a[0]])).slice(0, 8); };
+  const list = rows => `<ul class="top feat">` + rows.map(([i,n]) => `<li><button class="go" data-go="${i}">${esc(SHELF[i].t)}</button><span class="n">${n}</span></li>`).join("") + `</ul>`;
+  const all = tally(p => TYPES.some(T => p.r[T.k]));
+  return `<p class="note">The number is how many other movies${genre ? " in " + esc(genre) : ""} share at least one name with it.</p>`
+    + (all.length ? `<h3>By any link</h3>` + list(all) : `<h3>No links here</h3>`)
+    + TYPES.map(T => { const rows = tally(p => p.r[T.k]); return rows.length ? `<h3><i class="dot" style="--c:${T.color}"></i>${label[T.k] || T.name}</h3>` + list(rows) : ""; }).join("");
+}
+function renderPanel(){
+  if (selTag) return renderTagPanel();
+  if (selected === null){
+    const whose = (rater === "all" ? "overall" : "by " + RNAME[rater]) + (genre ? ", " + esc(genre) : "");
+    const ranked = N.filter(n => !n.off).sort((a,b) => scoreOf(b) - scoreOf(a));
+    const li = n => `<li><button class="go" data-go="${n.i}">${esc(n.m.t)}</button><span class="n">${fmtScore(scoreOf(n))}</span></li>`;
+    panel.innerHTML = `<h1>Confused Breakfast Movie Web</h1>
+      <p class="meta">${N.length} movies rated on the show, joined by ${G.filter(g => g.on).length} shared names. The higher the score, the bigger the poster.</p>${posterMiss && posterMiss.length ? `<details class="miss"><summary>${posterMiss.length} ${posterMiss.length === 1 ? "poster" : "posters"} could not be found</summary><p>${posterMiss.map(esc).join("; ")}</p></details>` : ""}
+      <ul class="how"><li>Switch between All, AJ, Mike, and Sean to size the posters by that score.</li>
+      <li>Pick a genre to fade everything else.</li>
+      <li>Point at a poster or a name to light up its connections. Bigger names link more movies.</li>
+      <li>Click a poster for its scores and connections. Click a name to center it and read a short bio.</li>
+      <li>Drag anything and it stays put. Scroll, pinch, or use + and &minus; to zoom.</li></ul>
+      <p class="also"><a href="by-the-numbers.html">See the show by the numbers</a>: favorite directors, biggest fights, and who grades hardest.</p>
+      <p class="credit">Made by Trevor Brightman, a fan of the show. Scores as of October 5, 2026.</p>
+      <div class="tabs" role="group" aria-label="Lists"><button type="button" data-tab="movies" aria-pressed="${panelTab === "movies"}">Top rated</button><button type="button" data-tab="people" aria-pressed="${panelTab === "people"}">Most featured</button><button type="button" data-tab="links" aria-pressed="${panelTab === "links"}">Most connected</button></div>`
+      + (panelTab === "movies"
+        ? `<h3>Highest rated ${whose}</h3><ul class="top">${ranked.slice(0,10).map(li).join("")}</ul>
+           <h3>Lowest rated ${whose}</h3><ul class="top">${ranked.slice(-5).reverse().map(li).join("")}</ul>`
+        : panelTab === "people" ? featured() : connected());
+  } else {
+    const m = SHELF[selected];
+    const list = nbrs[selected].map(e => ({e, o: SHELF[e.a === selected ? e.b : e.a], oi: e.a === selected ? e.b : e.a}))
+      .sort((a,b) => b.e.w - a.e.w || a.o.t.localeCompare(b.o.t));
+    const body = scoreRows(m) + `<dl class="bill">${row("Directed by", m.d, "d")}${row("Written by", m.wr, "wr")}${row("Starring", m.cast, "cast")}${row("Music by", m.m, "m")}${row("Photography", m.dp, "dp")}</dl>`;
+    const links = list.length
+      ? `<h3>Shares something with ${list.length} ${list.length === 1 ? "movie" : "movies"}</h3><ul class="links">` + list.map(({e,o,oi}) =>
+          `<li><button class="go" data-go="${oi}">${esc(o.t)}${o.y ? `<span>${o.y}</span>` : ""}</button><ul class="why">` +
+          e.kinds.map(T => `<li><i style="--c:${T.color}"></i><span><em>${T.name}:</em> ${e.p.r[T.k].map(v => who(v, T.k)).join(", ")}</span></li>`).join("") + `</ul></li>`).join("") + `</ul>`
+      : `<h3>A loner</h3><p>No other movie rated on the show shares a director, writer, composer, cinematographer, or lead actor with it.</p>`;
+    panel.innerHTML = `${backBar()}
+      <h2>${esc(m.t)}</h2>
+      <p class="meta">${[m.y].concat(m.g).map(esc).join(", ")}</p>${body}${links}`;
+    panel.scrollTop = 0;
+  }
+}
+panel.addEventListener("click", e => {
+  const tb = e.target.closest("[data-tab]"); if (tb){ panelTab = tb.dataset.tab; const y = panel.scrollTop; renderPanel(); panel.scrollTop = y; return; }
+  const w = e.target.closest("[data-who]"); if (w) return pickName(w.dataset.who, w.dataset.k);
+  const go = e.target.closest("[data-go]"); if (go) return select(+go.dataset.go);
+  if (e.target.closest("[data-back]")) return goBack();
+  if (e.target.closest("[data-clear]")) clearFocus();
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && !bio.hidden){ closeBio(); return; } if (e.key === "Escape" && focused()) goBack(); });
+
+/* ---------- TOOLBAR ---------- */
+function renderBar(){
+  bar.innerHTML = `<span class="seg" role="group" aria-label="Whose scores size the posters">${RATERS.map(([k,l]) => `<button type="button" data-rater="${k}" aria-pressed="${k === rater}">${l}</button>`).join("")}</span>`
+    + `<select id="genre" aria-label="Genre"><option value="">All genres</option>${GENRES.map(g => `<option${g === genre ? " selected" : ""}>${g}</option>`).join("")}</select>`
+    + TYPES.map(T => `<button type="button" class="chip" style="--c:${T.color}" aria-pressed="${T.on}" data-type="${T.k}"><i></i>${T.name} <b>${G.filter(g => g.by[T.k]).length}</b></button>`).join("")
+    + `<input id="find" type="search" placeholder="Find a movie" aria-label="Find a movie" value="${esc(query)}">`;
+}
+bar.addEventListener("click", e => {
+  const rb = e.target.closest("[data-rater]");
+  if (rb){
+    rater = rb.dataset.rater;
+    bar.querySelectorAll("[data-rater]").forEach(b => b.setAttribute("aria-pressed", b === rb));
+    applySizes(); renderPanel(); return;
+  }
+  const c = e.target.closest("[data-type]"); if (!c) return;
+  const T = TYPE[c.dataset.type]; T.on = !T.on; c.setAttribute("aria-pressed", T.on);
+  rebuildEdges(); if (selTag && !selTag.on) selTag = null;
+  paintNodes(); renderPanel();
+});
+bar.addEventListener("input", e => { if (e.target.id === "find"){ query = e.target.value; paintNodes(); } });
+bar.addEventListener("change", e => { if (e.target.id === "genre"){ genre = e.target.value; paintNodes(); renderPanel(); } });
+bar.addEventListener("keydown", e => {
+  if (e.target.id !== "find" || e.key !== "Enter") return;
+  const q = query.trim().toLowerCase(), hit = q && N.find(n => n.m.t.toLowerCase().includes(q));
+  if (hit) select(hit.i);
+});
+bar.addEventListener("pointerdown", e => e.stopPropagation());
+document.getElementById("fit").addEventListener("click", () => { userMoved = false; viewTo = null; savedView = null; fit(); });
+document.getElementById("reset").addEventListener("click", () => {
+  saved = {home:{}, ring:{}, hub:{}}; persist();
+  trail.length = 0; selected = null; selTag = null; savedView = null; viewTo = null; placeAll();
+  paintNodes(); renderPanel(); userMoved = false; fit();
+});
+
+/* ---------- POINTER: drag posters, pan, zoom ---------- */
+let ptr = null, pinch = null;
+const pts = new Map();
+function pinchState(){
+  const [a,b] = [...pts.values()], r = stage.getBoundingClientRect();
+  return {d: Math.hypot(a.x-b.x, a.y-b.y) || 1, mx:(a.x+b.x)/2 - r.left, my:(a.y+b.y)/2 - r.top};
+}
+stage.addEventListener("pointerdown", e => {
+  pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (pts.size === 2){
+    if (ptr && ptr.n) ptr.n.drag = false;
+    if (ptr && ptr.tag) ptr.tag.drag = false;
+    ptr = null; stage.classList.remove("panning"); pinch = pinchState();
+    stage.setPointerCapture(e.pointerId); return;
+  }
+  if (pts.size > 2) return;
+  const hitName = nameAt(e.clientX, e.clientY);
+  if (hitName && hitName.hub){                               // name tags: click for a bio, or drag to move
+    const h = hitName.hub;
+    ptr = {id:e.pointerId, x:e.clientX, y:e.clientY, hub:h, hx:h.x, hy:h.y, moved:false}; stage.setPointerCapture(e.pointerId); return;
+  }
+  if (hitName && hitName.tag){                               // same in the whole web
+    const g = hitName.tag;
+    ptr = {id:e.pointerId, x:e.clientX, y:e.clientY, tag:g, hx:g.x, hy:g.y, moved:false}; stage.setPointerCapture(e.pointerId); return;
+  }
+  const el = e.target.closest(".node"), n = el && N.find(n => n.el === el);
+  ptr = {id:e.pointerId, x:e.clientX, y:e.clientY, n, moved:false, tx:view.tx, ty:view.ty, nx:n && n.x, ny:n && n.y};
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener("pointermove", e => {
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (!ptr && !pinch && e.pointerType !== "touch"){
+    const ui = e.target.closest("#bar,#zoom,#bio"), hit = ui ? null : nameAt(e.clientX, e.clientY);
+    const el = !ui && !hit && e.target.closest(".node"), hn = el ? N.findIndex(n => n.el === el) : null, hg = hit && hit.tag ? hit.tag : null;
+    stage.style.cursor = hit && !e.target.closest(".node") ? "pointer" : "";
+    if (hn !== hoverN || hg !== hoverG){ hoverN = hn; hoverG = hg; poke(); }
+  }
+  if (pinch && pts.size >= 2){
+    const now = pinchState();
+    zoomAt(now.mx, now.my, now.d/pinch.d);
+    view.tx += now.mx - pinch.mx; view.ty += now.my - pinch.my;
+    pinch = now; return;
+  }
+  if (!ptr || e.pointerId !== ptr.id) return;
+  const dx = e.clientX-ptr.x, dy = e.clientY-ptr.y;
+  if (!ptr.moved && Math.hypot(dx,dy) < 5) return;
+  ptr.moved = true;
+  if (ptr.tag){ const g = ptr.tag; g.drag = true; g.x = ptr.hx + dx/view.k; g.y = ptr.hy + dy/view.k; g.home = {x:g.x, y:g.y}; return; }
+  if (ptr.hub){ const S = N[selected]; if (S) ptr.hub.user = [ptr.hx + dx/view.k - S.x - S.dx, ptr.hy + dy/view.k - S.y - S.dy]; return; }
+  if (ptr.n){
+    const n = ptr.n; n.drag = true; n.x = ptr.nx + dx/view.k; n.y = ptr.ny + dy/view.k;
+    if (focused() && n.ring && n.i !== selected) n.ring = {x:n.x, y:n.y};          // rearranging the branches of whatever is picked
+    else { n.home = {x:n.x, y:n.y}; if (n.ring) n.ring = {x:n.x, y:n.y}; }             // rearranging the main web
+  }
+  else { userMoved = true; viewTo = null; stage.classList.add("panning"); view.tx = ptr.tx + dx; view.ty = ptr.ty + dy; }
+});
+function endPtr(e){
+  pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+  if (!ptr || e.pointerId !== ptr.id) return;
+  if (ptr.tag){
+    const g = ptr.tag; g.drag = false;
+    if (ptr.moved){ saved.home["@" + g.name] = [Math.round(g.x*10)/10, Math.round(g.y*10)/10]; persist(); }
+    else selectTag(g);
+    ptr = null; return;
+  }
+  if (ptr.hub){
+    if (ptr.moved && ptr.hub.user && selected !== null){ saved.hub[N[selected].m.t + "|" + ptr.hub.label] = ptr.hub.user.map(v => Math.round(v*10)/10); persist(); }
+    if (!ptr.moved) pickName(ptr.hub.label, ptr.hub.T.k);
+    ptr = null; return;
+  }
+  if (ptr.n){
+    const n = ptr.n; n.drag = false;
+    if (ptr.moved){
+      const r1 = v => Math.round(v*10)/10;
+      if (focused() && n.ring && n.i !== selected){ const C = center(); saved.ring[C.key + "|" + n.m.t] = [r1(n.x - C.x), r1(n.y - C.y)]; }
+      else saved.home[n.m.t] = [r1(n.x), r1(n.y)];
+      persist();
+    }
+  }
+  if (!ptr.moved){
+    if (ptr.n) select(ptr.n.i);
+    else if (focused()) clearFocus();
+  }
+  stage.classList.remove("panning"); ptr = null;
+}
+stage.addEventListener("pointerleave", () => { if (hoverN !== null || hoverG){ hoverN = null; hoverG = null; poke(); } });
+stage.addEventListener("pointerup", endPtr); stage.addEventListener("pointercancel", endPtr);
+const ZMIN = .2, ZMAX = 8;
+function zoomAt(mx, my, factor){
+  userMoved = true; viewTo = null;
+  const k = Math.min(ZMAX, Math.max(ZMIN, view.k * factor));
+  view.tx = mx - (mx-view.tx)*k/view.k; view.ty = my - (my-view.ty)*k/view.k; view.k = k;
+}
+function zoomCenter(factor){ const r = stage.getBoundingClientRect(); zoomAt(r.width/2, r.height/2, factor); }
+stage.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  let d = e.deltaY; if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= 400;
+  // trackpad pinch arrives as tiny ctrl+wheel steps, so it needs a much stronger factor
+  zoomAt(e.clientX-r.left, e.clientY-r.top, Math.exp(-d * (e.ctrlKey ? 0.012 : 0.0025)));
+}, {passive:false});
+// Safari reports pinch as gesture events instead of wheel
+let gk = 1;
+stage.addEventListener("gesturestart", e => { e.preventDefault(); gk = 1; });
+stage.addEventListener("gesturechange", e => {
+  e.preventDefault(); const r = stage.getBoundingClientRect();
+  zoomAt(e.clientX-r.left, e.clientY-r.top, e.scale/gk); gk = e.scale;
+});
+stage.addEventListener("gestureend", e => e.preventDefault());
+for (const t of ["gesturestart","gesturechange","gestureend"]) document.addEventListener(t, e => e.preventDefault());
+document.addEventListener("wheel", e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
+stage.addEventListener("dblclick", e => {
+  if (e.target.closest("#bar,#zoom")) return;
+  const r = stage.getBoundingClientRect(); zoomAt(e.clientX-r.left, e.clientY-r.top, e.shiftKey ? 1/1.8 : 1.8);
+});
+document.getElementById("zoom").addEventListener("click", e => {
+  const b = e.target.closest("[data-z]"); if (b) zoomCenter(b.dataset.z === "in" ? 1.4 : 1/1.4);
+});
+document.getElementById("zoom").addEventListener("pointerdown", e => e.stopPropagation());
+document.getElementById("zoom").addEventListener("dblclick", e => e.stopPropagation());
+addEventListener("keydown", e => {
+  if (e.target.matches("input") || e.metaKey || e.ctrlKey) return;
+  if (e.key === "+" || e.key === "=") zoomCenter(1.4);
+  else if (e.key === "-" || e.key === "_") zoomCenter(1/1.4);
+  else if (e.key === "0"){ userMoved = false; viewTo = null; savedView = null; fit(); }
+});
+addEventListener("resize", () => { resize(); if (!userMoved) fit(); });
+
+/* ---------- POSTERS (looked up from Wikipedia when the file opens) ---------- */
+async function loadPosters(){
+  let cache = {};
+  try { cache = JSON.parse(localStorage.getItem("cbweb-posters-1") || "{}"); } catch(e){}
+  const put = (n, src) => { const img = n.el.querySelector("img"); img.onload = () => n.el.classList.add("has-img"); img.onerror = () => { delete cache[n.m.w]; try { localStorage.setItem("cbweb-posters-1", JSON.stringify(cache)); } catch(e){} }; img.src = src; };
+  const need = [];
+  N.forEach(n => { if (!n.m.w) return; if (cache[n.m.w]) put(n, cache[n.m.w]); else need.push(n); });
+  for (let i=0; i<need.length; i+=40){
+    const group = need.slice(i, i+40);
+    try {
+      const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=330&pilicense=any&pilimit=50&titles="
+        + encodeURIComponent(group.map(n => n.m.w).join("|"));
+      const q = (await (await fetch(url)).json()).query || {};
+      const hop = {}; for (const x of (q.normalized||[]).concat(q.redirects||[])) hop[x.from] = x.to;
+      const src = {}; for (const p of Object.values(q.pages||{})) if (p.thumbnail) src[p.title] = p.thumbnail.source;
+      for (const n of group){
+        let t = n.m.w; for (let h=0; h<3 && hop[t]; h++) t = hop[t];
+        if (src[t]){ cache[n.m.w] = src[t]; put(n, src[t]); }
+      }
+    } catch(e){ /* offline: title cards stay */ }
+  }
+  const left = N.filter(n => n.m.w && !cache[n.m.w]);
+  let online = true;
+  for (let i=0; i<left.length && online; i+=6){
+    await Promise.all(left.slice(i, i+6).map(async n => {
+      try {
+        const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=1&gsrsearch="
+          + encodeURIComponent(n.m.t + " " + n.m.y + " film") + "&prop=pageimages&piprop=thumbnail&pithumbsize=330&pilicense=any";
+        const j = await (await fetch(url)).json();
+        const pg = j.query && j.query.pages && Object.values(j.query.pages)[0];
+        if (pg && pg.thumbnail){ cache[n.m.w] = pg.thumbnail.source; put(n, pg.thumbnail.source); }
+      } catch(e){ online = false; }
+    }));
+  }
+  try { localStorage.setItem("cbweb-posters-1", JSON.stringify(cache)); } catch(e){}
+  posterMiss = online ? N.filter(n => !cache[n.m.w]).map(n => n.m.t) : null;
+  if (!focused()) renderPanel();
+}
+
+/* ---------- GO ---------- */
+rebuildEdges(); renderBar(); loadSaved(); placeAll(); applySizes(); resize();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { G.forEach(g => g.w = 0); poke(); });
+fit(); paintNodes(); renderPanel(); loadPosters();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
